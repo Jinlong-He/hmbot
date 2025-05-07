@@ -1,5 +1,4 @@
 import argparse
-from dista.utils import get_available_devices
 from dista.proto import OperatingSystem
 
 if __name__ == '__main__':
