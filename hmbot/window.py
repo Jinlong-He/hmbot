@@ -25,9 +25,9 @@ class Window(object):
             if page.bundle == app.bundle:
                 return page
     
-    def _dump(self, id):
-        vht_file = str(id) + '.json'
-        img_file = str(id) + '.png'
+    def _dump(self, id, dir_path):
+        vht_file = dir_path + str(id) + '.json'
+        img_file = dir_path + str(id) + '.png'
         VHTParser.dump(self.vht, vht_file)
         write(img_file, self.img)
         return (vht_file, img_file)

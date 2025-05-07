@@ -119,7 +119,7 @@ class LLM(Explorer):
         logger.debug("edges_count: " + str(edges_count))
         logger.debug("ability_count: " + str(len(ability_count)))
         logger.debug("total_time: %.2f seconds" % (end - start))
-        WTGParser.dump(wtg, 'wtg.json')
+        WTGParser.dump(wtg, goal.get('output_dir'))
         t1.join()
 
     # def _should_terminate(self, window, goal):

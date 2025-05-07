@@ -1,5 +1,13 @@
 import argparse
-from hmbot.proto import OperatingSystem
+import time
+
+from hmbot.device import Device
+from hmbot.explorer.llm import LLM
+from hmbot.proto import OperatingSystem, ResourceType, ExploreGoal
+from hmbot.app.android_app import AndroidApp
+from hmbot.app.harmony_app import HarmonyApp
+from loguru import logger
+from config import init_config
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -9,11 +17,14 @@ if __name__ == '__main__':
     parser_detect = subparsers.add_parser('detect', help='detect bugs')
 
     parser_devices.add_argument('--os', type=str, help='specify the operating system of deivce')
-    # parser_explore.add_argument('app_path', type=str, help='specify the app path for exploration')
-    # parser_explore.add_argument('-s', '--serial', type=str, help='specify the device serial for exploration')
-    # parser_explore.add_argument('-d', '--depth', type=int, default=2, help='specify the depth of exploration, default is 2')
-    # parser_explore.add_argument('-o', '--output', type=str, default='output.xml', help='specify the output file path of hstg')
-    # parser_explore.add_argument('-t', '--timeout', type=int, default=30, help='specify the timeout of exploration')
+    
+    parser_explore.add_argument('--os', type=str, help='specify the operating system of exploration')
+    parser_explore.add_argument('-p', '--app_path', type=str, help='specify the app path for exploration')
+    parser_explore.add_argument('-s', '--serial', type=str, help='specify the device serial for exploration')
+    parser_explore.add_argument('-m', '--max_steps', type=int, default=20, help='specify the depth of exploration, default is 20')
+    parser_explore.add_argument('-k', '--key', type=str, default='hardware', help='specify the exploration goal type: "hardware" for hardware resource testing, "testcase" for test script execution')
+    parser_explore.add_argument('-v', '--value', type=str, default='audio', help='specify the resource type for hardware (audio, camera, micro, keyboard) or testcase script path')
+    parser_explore.add_argument('-o', '--output', type=str, default='output/', help='specify the output directory for exploration results')
 
     # parser_detect.add_argument('--source_device', type=str, help='specify the source device serial for detection')
     # parser_detect.add_argument('--target_device', type=str, help='specify the target device serial for detection')
@@ -22,6 +33,7 @@ if __name__ == '__main__':
     # parser_detect.add_argument('--source_hstg', type=str, help='specify the source hstg path for detection')
     # parser_detect.add_argument('--target_hstg', type=str, help='specify the target hstg path for detection')
     # parser_detect.add_argument('-o', '--output', type=str, default='output.xml', help='specify the output file path of detection')
+    
     args = parser.parse_args()
     if args.command == 'devices':
         if args.os:
@@ -32,6 +44,66 @@ if __name__ == '__main__':
             if os == OperatingSystem.ANDROID:
                 from hmbot.utils import get_android_available_devices
                 print(get_android_available_devices())
+    if args.command == 'explore':
+        llm_config = init_config()
+        os = ''
+        serial = ''
+        app_path = ''
+        app = None
+        if args.os:
+            os = args.os
+        else:
+            logger.error("Operating system not specified! Please use --os parameter.")
+            exit(1)
+        if args.serial:
+            serial = args.serial
+        else:
+            logger.error("Device serial not specified! Please use -s parameter.")
+            exit(1)
+        if args.app_path:
+            app_path = args.app_path
+            if os == OperatingSystem.HARMONY:
+                if not app_path.endswith('.hap'):
+                    logger.error("Harmony application path must end with .hap!")
+                    exit(1)
+                else:
+                    app = HarmonyApp(app_path)
+            if os == OperatingSystem.ANDROID:
+                if not app_path.endswith('.apk'):
+                    logger.error("Android application path must end with .apk!")
+                    exit(1)
+                else:
+                    app = AndroidApp(app_path=app_path)
+        else:
+            logger.error("Application path not specified! Please use --p parameter.")
+            exit(1)
+        device = Device(serial, os)
+        llm = LLM(device=device, url=llm_config['base_url'], model=llm_config['model'],api_key=llm_config['api_key'])
+
+        device.install_app(app)
+        time.sleep(5)
+        device.start_app(app)
+        time.sleep(5)
+
+        import os
+        import shutil
+        output_dir = args.output
+        # Check if output directory exists
+        if os.path.exists(output_dir):
+            for item in os.listdir(output_dir):
+                item_path = os.path.join(output_dir, item)
+                if os.path.isfile(item_path):
+                    os.remove(item_path)
+                elif os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+        else:
+            os.makedirs(output_dir)
+
+
+        llm.explore(key=args.key, value=args.value, max_steps=args.max_steps, output_dir=args.output)
+            
+
+
     # if args.command == 'explore':
     #     serial = ''
     #     if args.serial:

@@ -33,11 +33,11 @@ class WTG(object):
                 return False
         return True
     
-    def _json_list(self):
+    def _json_list(self, dir_path):
         res = []
         for id in range(len(self.windows)):
             src_window = self.windows[id]
-            vht_file, img_file = src_window._dump(id)
+            vht_file, img_file = src_window._dump(id, dir_path)
             edge_list = []
             for (tgt_window, events) in self._adj_list[src_window].items():
                 tgt_id = self.windows.index(tgt_window)
@@ -59,7 +59,7 @@ class WTGParser(object):
         return wtg
 
     @classmethod
-    def dump(cls, wtg, file, indent=2):
-        with open(file, 'w') as write_file:
-            json.dump(wtg._json_list(), write_file, indent=indent, ensure_ascii=False)
+    def dump(cls, wtg, dir_path, indent=2):
+        with open(dir_path + 'wtg.json', 'w') as write_file:
+            json.dump(wtg._json_list(dir_path), write_file, indent=indent, ensure_ascii=False)
 
