@@ -1,5 +1,5 @@
 import argparse
-from dista.proto import OperatingSystem
+from hmbot.proto import OperatingSystem
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -24,10 +24,14 @@ if __name__ == '__main__':
     # parser_detect.add_argument('-o', '--output', type=str, default='output.xml', help='specify the output file path of detection')
     args = parser.parse_args()
     if args.command == 'devices':
-        os = OperatingSystem.HARMONY
-        print(get_available_devices())
         if args.os:
             os = args.os
+            if os == OperatingSystem.HARMONY:
+                from hmbot.utils import get_harmony_available_devices
+                print(get_harmony_available_devices())
+            if os == OperatingSystem.ANDROID:
+                from hmbot.utils import get_android_available_devices
+                print(get_android_available_devices())
     # if args.command == 'explore':
     #     serial = ''
     #     if args.serial:
