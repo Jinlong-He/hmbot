@@ -102,7 +102,7 @@ python run.py devices --os android
 Use LLM for application exploration:
 
 ```bash
-python run.py explore --os <operating_system> -p <app_path> -s <device_port> [options]
+python run.py explore --os <operating_system> -p <app_path> -s <device_port> --testcase <script_path> | --hardware <hardware_kind> [options]
 ```
 
 Parameter description:
