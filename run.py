@@ -1,6 +1,5 @@
 import argparse
 import time
-
 from hmbot.device import Device
 from hmbot.explorer.llm import LLM
 from hmbot.proto import OperatingSystem, ResourceType, ExploreGoal
@@ -8,6 +7,7 @@ from hmbot.app.android_app import AndroidApp
 from hmbot.app.harmony_app import HarmonyApp
 from loguru import logger
 from config import init_config
+from hmbot.hmbot import HMBot
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -17,13 +17,16 @@ if __name__ == '__main__':
     parser_detect = subparsers.add_parser('detect', help='detect bugs')
 
     parser_devices.add_argument('--os', type=str, help='specify the operating system of deivce')
-    
-    parser_explore.add_argument('--os', type=str, help='specify the operating system of exploration')
-    parser_explore.add_argument('-p', '--app_path', type=str, help='specify the app path for exploration')
-    parser_explore.add_argument('-s', '--serial', type=str, help='specify the device serial for exploration')
+
+
+    exploration_group = parser_explore.add_mutually_exclusive_group(required=True)
+    exploration_group.add_argument('--testcase', nargs='+', help='Specify test case for exploration')
+    exploration_group.add_argument('--hardware', nargs='+', choices=['audio', 'microphone', 'camera', 'keyboard'],
+                                   help='Specify hardware resources (audio, microphone, camera, keyboard) for exploration')
+    parser_explore.add_argument('--os', type=str, required=True, help='specify the operating system of exploration')
+    parser_explore.add_argument('-p', '--app_path', type=str, required=True, help='specify the app\'s apk/hap path for exploration')
+    parser_explore.add_argument('-s', '--serial', type=str, nargs='+', required=True, help='specify the device serial for exploration')
     parser_explore.add_argument('-m', '--max_steps', type=int, default=20, help='specify the depth of exploration, default is 20')
-    parser_explore.add_argument('-k', '--key', type=str, default='hardware', help='specify the exploration goal type: "hardware" for hardware resource testing, "testcase" for test script execution')
-    parser_explore.add_argument('-v', '--value', type=str, default='audio', help='specify the resource type for hardware (audio, camera, micro, keyboard) or testcase script path')
     parser_explore.add_argument('-o', '--output', type=str, default='output/', help='specify the output directory for exploration results')
 
     # parser_detect.add_argument('--source_device', type=str, help='specify the source device serial for detection')
@@ -46,89 +49,10 @@ if __name__ == '__main__':
                 print(get_android_available_devices())
     if args.command == 'explore':
         llm_config = init_config()
-        os = ''
-        serial = ''
-        app_path = ''
-        app = None
-        if args.os:
-            os = args.os
-        else:
-            logger.error("Operating system not specified! Please use --os parameter.")
-            exit(1)
-        if args.serial:
-            serial = args.serial
-        else:
-            logger.error("Device serial not specified! Please use -s parameter.")
-            exit(1)
-        if args.app_path:
-            app_path = args.app_path
-            if os == OperatingSystem.HARMONY:
-                if not app_path.endswith('.hap'):
-                    logger.error("Harmony application path must end with .hap!")
-                    exit(1)
-                else:
-                    app = HarmonyApp(app_path)
-            if os == OperatingSystem.ANDROID:
-                if not app_path.endswith('.apk'):
-                    logger.error("Android application path must end with .apk!")
-                    exit(1)
-                else:
-                    app = AndroidApp(app_path=app_path)
-        else:
-            logger.error("Application path not specified! Please use --p parameter.")
-            exit(1)
-        device = Device(serial, os)
-        llm = LLM(device=device, url=llm_config['base_url'], model=llm_config['model'],api_key=llm_config['api_key'])
-
-        device.install_app(app)
-        time.sleep(5)
-        device.start_app(app)
-        time.sleep(5)
-
-        import os
-        import shutil
-        output_dir = args.output
-        # Check if output directory exists
-        if os.path.exists(output_dir):
-            for item in os.listdir(output_dir):
-                item_path = os.path.join(output_dir, item)
-                if os.path.isfile(item_path):
-                    os.remove(item_path)
-                elif os.path.isdir(item_path):
-                    shutil.rmtree(item_path)
-        else:
-            os.makedirs(output_dir)
-
-        # Explore
-        if args.key == ExploreGoal.HARDWARE:
-            # If the exploration goal is hardware resources, the value parameter is the resource type
-            llm.explore(key=args.key, value=args.value, max_steps=args.max_steps, output_dir=args.output)
-        elif args.key == ExploreGoal.TESTCASE:
-            # If the exploration goal is test script, the value parameter is the script path
-            with open(args.value, 'r') as file:
-                script = file.read()
-                llm.explore(key=args.key, value=script, max_steps=args.max_steps, output_dir=args.output)
-            
+        hmbot = HMBot(args.os, args.serial, llm_config)
+        hmbot.explore(args)
 
 
-    # if args.command == 'explore':
-    #     serial = ''
-    #     if args.serial:
-    #         serial = args.serial
-    #     else:
-    #         from hacmony.utils import get_available_devices
-    #         devices = get_available_devices()
-    #         if len(devices) > 0:
-    #             serial = devices[0]
-    #         else:
-    #             logger.warning("No device connected!")
-    #             exit(0)
-    #     depth = args.depth
-    #     timeout = args.timeout
-    #     hacmony = HACMony()
-    #     device = Device(serial)
-    #     hstg = hacmony.explore(device, depth, args.app_path, timeout)
-    #     hstg.export_xml(args.output)
 
     # if args.command == 'detect':
     #     source_device_serial = ''
