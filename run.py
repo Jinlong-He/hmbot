@@ -1,11 +1,5 @@
 import argparse
-import time
-from hmbot.device import Device
-from hmbot.explorer.llm import LLM
-from hmbot.proto import OperatingSystem, ResourceType, ExploreGoal
-from hmbot.app.android_app import AndroidApp
-from hmbot.app.harmony_app import HarmonyApp
-from loguru import logger
+from hmbot.proto import OperatingSystem
 from config import init_config
 from hmbot.hmbot import HMBot
 
@@ -20,7 +14,7 @@ if __name__ == '__main__':
 
 
     exploration_group = parser_explore.add_mutually_exclusive_group(required=True)
-    exploration_group.add_argument('--testcase', nargs='+', help='Specify test case for exploration')
+    exploration_group.add_argument('--testcase', nargs='+', help='Specify test script file path(s) for exploration')
     exploration_group.add_argument('--hardware', nargs='+', choices=['audio', 'microphone', 'camera', 'keyboard'],
                                    help='Specify hardware resources (audio, microphone, camera, keyboard) for exploration')
     parser_explore.add_argument('--os', type=str, required=True, help='specify the operating system of exploration')
