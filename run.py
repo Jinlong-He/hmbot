@@ -99,8 +99,15 @@ if __name__ == '__main__':
         else:
             os.makedirs(output_dir)
 
-
-        llm.explore(key=args.key, value=args.value, max_steps=args.max_steps, output_dir=args.output)
+        # Explore
+        if args.key == ExploreGoal.HARDWARE:
+            # If the exploration goal is hardware resources, the value parameter is the resource type
+            llm.explore(key=args.key, value=args.value, max_steps=args.max_steps, output_dir=args.output)
+        elif args.key == ExploreGoal.TESTCASE:
+            # If the exploration goal is test script, the value parameter is the script path
+            with open(args.value, 'r') as file:
+                script = file.read()
+                llm.explore(key=args.key, value=script, max_steps=args.max_steps, output_dir=args.output)
             
 
 
