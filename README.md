@@ -108,7 +108,7 @@ python run.py explore --os <operating_system> -p <app_path> -s <device_port> --t
 Parameter description:
 - `--os`: **[Required]** Specify the operating system type (android or harmony)
 - `-p, --app_path`: **[Required]** Specify the path to the APK or HAP file of the application
-- `-s, --serial`: **[Required]** Specify the device port number
+- `-s, --serial`: **[Required]** Specify the device port number(s), multiple devices can be specified, e.g., `-s emulator-5554 emulator-5556`
 - `-m, --max_steps`: [Optional] Specify the maximum number of exploration steps, default is 20
 - `-o, --output`: [Optional] Specify the output directory, default is "output/"
 
