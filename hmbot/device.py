@@ -102,7 +102,8 @@ class Device(object):
             img = self.screenshot()
             rsc = self.get_resource_status()
             ability = self.current_ability().get('ability')
-            self.window = Window(vht=vht, img=img, rsc=rsc, ability=ability)
+            bundle = self.current_ability().get('bundle')
+            self.window = Window(vht=vht, img=img, rsc=rsc, ability=ability, bundle=bundle)
         return self.window
 
     def dump_page(self, split=False, app=None):
