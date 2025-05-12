@@ -67,3 +67,9 @@ class MicroStatus:
 class ExploreGoal(str, Enum):
     TESTCASE = 'testcase'
     HARDWARE = 'hardware'
+
+class AudioType(str, Enum):
+    MUSIC = 'music'
+    VIDEO = 'video'
+    NAVIGATION = 'navigation'
+    COMMUNICATION = 'communication'

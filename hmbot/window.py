@@ -8,7 +8,7 @@ class Window(object):
         self.img = img
         self.rsc = rsc
         self.ability = ability
-        self.audio_type = None
+        self.audio_type = ''
         self.bundle = bundle
 
         # roots = vht.roots()
@@ -38,7 +38,10 @@ class Window(object):
         return {'vht': vht_file,
                 'img': img_file,
                 'rsc': self.rsc,
-                'ability': self.ability}
+                'ability': self.ability,
+                'audio_type': self.audio_type,
+                'bundle': self.bundle,
+                }
 
     def _is_same(self, new_window):
         # todo

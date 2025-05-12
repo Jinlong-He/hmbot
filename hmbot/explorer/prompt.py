@@ -53,6 +53,7 @@ Analyze the provided screenshot of a mobile application interface and determine 
 - Navigation (voice guidance)
 - Music (music playback)
 - Video (video with audio or live streaming)
+- Communication (voice/video calls with friends, voice messages)
 
 ## Instructions
 Carefully examine the interface elements, icons, buttons, and layout to identify features that suggest audio capabilities.
@@ -62,16 +63,30 @@ Look for:
 - Video thumbnails or players
 - Live streaming indicators or broadcast buttons
 - Audio visualization elements
+- Communication icons (phone, video call, voice message, friend contacts, chat bubbles)
+
+## Important Tips
+First determine the application category:
+- Navigation apps: Focus on navigation audio features only. ALWAYS ignore Communication category for navigation apps.
+- Video apps: Focus on video playback features
+- Music apps: Focus on music playback features
+- Social/Messaging apps: These may have communication features (friends, contacts, messages)
+- Other apps: Look for communication-related elements like "Messages", "Contacts", "Friends", "Chat" tabs or buttons. If you see any of these elements, the app likely has Communication features.
+
+Note that Communication features (voice/video calls, voice messages) are typically found in social or messaging applications, but may also exist in other app types if you see messaging or contact-related UI elements. For navigation apps, you MUST completely ignore the Communication category.
+Important: "Community", "Forum", "Comments", "Social" or similar tabs/sections that only allow text-based interactions should NOT be considered as Communication features. Communication category should ONLY be identified when there are clear indicators of voice/video calls or voice messaging capabilities.
 
 ## Output Format
-Return ONLY a list containing the identified audio categories. You must choose from these 4 categories only:
+Return ONLY a list containing the identified audio categories. You must choose from these categories only:
 - Navigation
 - Music
 - Video
+- Communication
 
 Example responses:
 ["Music", "Video"]
 ["Navigation"]
+["Communication", "Video"]
 """
 
 audio_off_prompt = """
@@ -209,32 +224,37 @@ Focus on ensuring that the video playback feature is working properly, as this i
 
 communication_audio_prompt = """
 ## Task Scenario: Communication Audio Exploration
-You are exploring applications to find and test communication audio functionality. Your primary goal is to activate voice or audio communication features in any application that might provide them.
+You are exploring applications to find and test communication audio functionality. Your primary goal is to activate voice or video call features in any application that might provide them.
 
 ## Background
-Many applications provide communication audio features, including messaging apps, social platforms, video conferencing tools, VoIP services, and even some productivity or collaboration apps. The core functionality involves voice messages, audio/video calls, voice notes, or other forms of audio communication.
+Many applications provide communication audio features, including messaging apps, social platforms, video conferencing tools, and VoIP services. The core functionality involves initiating voice or video calls with contacts or friends.
 
 ## Testing Objective
-Successfully activate any audio communication feature in the application. Try the following approaches in order of priority:
+Successfully activate voice or video call functionality in the application. Follow these steps in order:
 
-1. Look for and play any video content or live streams - if you see any videos or live streaming content, click on them directly as they are the most likely to produce audio
-2. Look for voice messages or voice memos features and play any available voice content
-3. Try initiating a voice or video call (if supported by the app and safe in a test environment)
-4. Look for and tap on any content or buttons with sound icons or microphone symbols
-5. Check for voice note recording features in messaging or note-taking interfaces
-6. Look for voice assistant or voice command features
-7. Check notification sound settings or other system features that might trigger communication sounds
+1. Look for tabs, buttons, or sections labeled "Contacts," "Friends," "Messages," "Chats," or similar social connection features
+2. Navigate to the contacts or friends list section of the application
+3. Select any available contact or friend from the list
+4. Look for call buttons - typically represented by phone icons (for voice calls) or camera/video icons (for video calls)
+5. Tap on the voice call or video call button to initiate a call
+6. If prompted for permissions to access microphone or camera, grant the permissions
+7. Wait for the call to connect or for the calling interface to appear
 
 ## Success Criteria
-The test is considered successful when the application produces any audible sound related to communication. This could come from:
-- Voice message or voice note playback
-- Call ringtones or connection sounds
-- Voice or video call audio
-- Voice assistant responses
-- Notification or alert sounds for messages
-- Any other communication-related audio feature
+The test is considered successful when the application initiates a call. This is typically indicated by:
+- Call connection screen appearing
+- Ringing or connecting sound playing
+- Call timer starting
+- Microphone activation indicators appearing
+- Call control buttons (mute, speaker, end call) becoming visible
 
-Focus on ensuring that the communication audio feature is working properly. You do not need to complete an entire communication session - simply confirming that the audio communication feature has been activated is sufficient to consider the test successful.
+Focus on initiating the call functionality - you do not need to complete an entire call session. Simply confirming that the call feature has been activated is sufficient to consider the test successful.
+
+## Important Notes
+- Prioritize finding actual contacts/friends lists rather than general messaging features
+- Look specifically for direct call buttons rather than messaging or other communication options
+- If the app requires login, look for test or demo options that might allow access to calling features
+- Avoid any features related to video content, music playback, or live streaming - focus exclusively on person-to-person communication
 """
 
 other_audio_prompt = """
@@ -419,7 +439,6 @@ You can only choose from the following types of actions:
 2. "input": Specify the element ID and the text to be entered
 3. "swipe": Specify the direction ("up", "down", "left", "right")
 4. "back": Press the back button
-5. "home": Return to the home screen (close the application)
 
 ## Response Format
 Return your decision strictly in the following JSON format, without any explanatory language:
@@ -427,8 +446,10 @@ Return your decision strictly in the following JSON format, without any explanat
 {{"event_type": "input", "element_id": 2, "text": "测试文本"}}
 {{"event_type": "swipe", "direction": "up"}}
 {{"event_type": "back"}}
-{{"event_type": "home"}}
 """
+
+# 5. "home": Return to the home screen (close the application)
+# {{"event_type": "home"}}
 
 
 verify_prompt = """

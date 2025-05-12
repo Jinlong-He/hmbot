@@ -9,7 +9,7 @@ from .explorer import Explorer
 from .prompt import *
 from ..cv import _crop, encode_image
 from ..event import *
-from ..proto import SwipeDirection, ExploreGoal, AudioStatus, ResourceType
+from ..proto import SwipeDirection, ExploreGoal, AudioStatus, ResourceType, AudioType
 from ..wtg import WTG, WTGParser
 
 
@@ -30,27 +30,30 @@ class LLM(Explorer):
 
 
     def explore(self, **goal):
-        # while True:
-        #     self._should_terminate_thread(goal)
-
         start = time.time()
+        # Start a thread to check if the audio is turned on
         t1 = threading.Thread(target=self._should_terminate_thread, args=(goal,))
         t1.start()
         time.sleep(2)
-
-        # If audio plays when the software is opened, first let the large model explore, then close all audio
-        if self.terminated:
-            self._explore(audio_off_prompt, audio=False, max_steps=goal.get('max_steps'))
+        # return
         with self.lock:
             first_window = self.device.dump_window(refresh=True)
 
-        # The large model has completed the exploration of all audio types
+        # The large model understands the first window to get the kind of scenarios
         scenario_list = self._understand(goal.get('key'), goal.get('value'), first_window)
-        for index, scenario in enumerate(scenario_list):
-            self._explore(scenario, audio=True, max_steps=goal.get('max_steps'))
-            # After completing each exploration, close all audio and proceed to the next exploration
-            if self.terminated and index < len(scenario_list) - 1:
+
+        # If there is only one scene and audio is enabled, then immediately end the exploration
+        if self.terminated and len(scenario_list) == 1:
+            self.wtg.add_window(first_window)
+            self.ability_count.add(first_window.ability)
+        else:
+            if self.terminated and len(scenario_list) > 1:
                 self._explore(audio_off_prompt, audio=False, max_steps=goal.get('max_steps'))
+            for index, scenario in enumerate(scenario_list):
+                self._explore(scenario, audio=True, max_steps=goal.get('max_steps'))
+                # After completing each exploration, close all audio and proceed to the next exploration
+                if self.terminated and index < len(scenario_list) - 1:
+                    self._explore((scenario[0], audio_off_prompt), audio=False, max_steps=goal.get('max_steps'))
 
         end = time.time()
         logger.debug("events_count: " + str(len(self.events)))
@@ -58,9 +61,10 @@ class LLM(Explorer):
         logger.debug("edges_count: " + str(self.edges_count))
         logger.debug("ability_count: " + str(len(self.ability_count)))
         logger.debug("total_time: %.2f seconds" % (end - start))
-        # WTGParser.dump(self.wtg, goal.get('output_dir'))
+        WTGParser.dump(self.wtg, goal.get('output_dir'))
         self.close = True
         t1.join(timeout=1)
+        return self.wtg
 
     def _explore(self, scenario, audio, max_steps=20):
         """
@@ -77,10 +81,17 @@ class LLM(Explorer):
         nodes_description_before = []
         steps = 0
 
+        audio_type = scenario[0]
+        scenario = scenario[1]
+
         while ((not self.terminated) if audio else self.terminated) and steps < max_steps:
             # Get interface before operation execution
             with self.lock:
                 window_before = self.device.dump_window(refresh=True)
+                if self.terminated:
+                    window_before.audio_type = audio_type
+                else:
+                    window_before.audio_type = ''
 
             # Get interface element information (only needed first time, as verify gets post-operation interface info)
             if not nodes_description_before:
@@ -116,6 +127,10 @@ class LLM(Explorer):
             # If current operation is valid, add it to the completed operations list
             if verify_result["validity"]:
                 events_without_error.extend(events)
+                if self.terminated:
+                    window_after.audio_type = audio_type
+                else:
+                    window_after.audio_type = ''
                 self.wtg.add_edge(window_before, window_after, events)
                 self.ability_count.add(window_before.ability)
                 self.ability_count.add(window_after.ability)
@@ -230,13 +245,13 @@ class LLM(Explorer):
             if value == ResourceType.AUDIO:
                 for app_kind in audio_kind_list:
                     if app_kind == 'Navigation':
-                        scenario_list.append(navigation_audio_prompt)
+                        scenario_list.append((AudioType.NAVIGATION, navigation_audio_prompt))
                     elif app_kind == 'Music':
-                        scenario_list.append(music_audio_prompt)
+                        scenario_list.append((AudioType.MUSIC, music_audio_prompt))
                     elif app_kind == 'Video':
-                        scenario_list.append(video_audio_prompt)
+                        scenario_list.append((AudioType.VIDEO, video_audio_prompt))
                     elif app_kind == 'Communication':
-                        scenario_list.append(communication_audio_prompt)
+                        scenario_list.append((AudioType.COMMUNICATION, communication_audio_prompt))
             elif value == ResourceType.CAMERA:
                 scenario_list.append(camera_prompt)
             elif value == ResourceType.MICRO:
