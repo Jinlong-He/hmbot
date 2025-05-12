@@ -3,6 +3,7 @@ import re
 from .proto import SystemKey
 
 class Event(ABC):
+    @abstractmethod
     def __init__(self):
         pass
 
@@ -83,4 +84,18 @@ class KeyEvent(Event):
         return {
             'type': 'Key',
             'key': self.key,
+        }
+
+class StartAppEvent(Event):
+    def __init__(self, device, app):
+        self.device = device
+        self.app = app
+
+    def execute(self):
+        self.device.start_app(self.app)
+
+    def _json(self):
+        return {
+            'type': 'StartApp',
+            'app': self.app,
         }

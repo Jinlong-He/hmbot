@@ -3,12 +3,14 @@ from .vht import VHT, VHTParser
 from .cv import write
 
 class Window(object):
-    def __init__(self, vht, img, rsc, ability):
+    def __init__(self, vht, img, rsc, ability, bundle):
         self.vht = vht
         self.img = img
         self.rsc = rsc
         self.ability = ability
         self.audio_type = None
+        self.bundle = bundle
+
         # roots = vht.roots()
         # self._pages = []
         # for root in roots:

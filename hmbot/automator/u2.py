@@ -44,6 +44,12 @@ class U2(Automator):
         self.start_app(app)
     
     def click(self, x, y):
+        self.display_info(refresh=True)
+        width = self._display_info.width
+        height = self._display_info.height
+        if x < 1 and y < 1:
+            x = x * width
+            y = y * height
         return self._driver.click(x, y)
 
     def long_click(self, x, y):
