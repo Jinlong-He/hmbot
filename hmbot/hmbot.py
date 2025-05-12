@@ -44,7 +44,7 @@ class HMBot(object):
             device.install_app(self.app)
             time.sleep(5)
             device.start_app(self.app)
-            time.sleep(5)
+            time.sleep(10)
 
             output_dir = args.output
             if not output_dir.endswith('/'):

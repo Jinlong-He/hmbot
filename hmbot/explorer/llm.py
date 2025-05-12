@@ -20,20 +20,52 @@ class LLM(Explorer):
         self.model = model
         self.terminated = False
         self.lock = threading.Lock()
+        self.close = False
+        self.max_retry = 3
+        self.wtg = WTG()
+        self.events = []
+        self.ability_count = set()
+        self.edges_count = 0
+
+
 
     def explore(self, **goal):
+        # while True:
+        #     self._should_terminate_thread(goal)
+
+        start = time.time()
+        t1 = threading.Thread(target=self._should_terminate_thread, args=(goal,))
+        t1.start()
+        time.sleep(2)
+
+        # If audio plays when the software is opened, first let the large model explore, then close all audio
+        if self.terminated:
+            self._explore(audio_off_prompt, audio=False, max_steps=goal.get('max_steps'))
+        with self.lock:
+            first_window = self.device.dump_window(refresh=True)
+
+        # The large model has completed the exploration of all audio types
+        scenario_list = self._understand(goal.get('key'), goal.get('value'), first_window)
+        for index, scenario in enumerate(scenario_list):
+            self._explore(scenario, audio=True, max_steps=goal.get('max_steps'))
+            # After completing each exploration, close all audio and proceed to the next exploration
+            if self.terminated and index < len(scenario_list) - 1:
+                self._explore(audio_off_prompt, audio=False, max_steps=goal.get('max_steps'))
+
+        end = time.time()
+        logger.debug("events_count: " + str(len(self.events)))
+        logger.debug("windows_count: " + str(len(self.wtg.windows)))
+        logger.debug("edges_count: " + str(self.edges_count))
+        logger.debug("ability_count: " + str(len(self.ability_count)))
+        logger.debug("total_time: %.2f seconds" % (end - start))
+        # WTGParser.dump(self.wtg, goal.get('output_dir'))
+        self.close = True
+        t1.join(timeout=1)
+
+    def _explore(self, scenario, audio, max_steps=20):
         """
         Exploration
         """
-        wtg = WTG()
-
-        ability_count = set()
-        edges_count = 0
-        start = time.time()
-
-        with self.lock:
-            first_window = self.device.dump_window(refresh=True)
-        scenario = self._understand(goal.get('key'), goal.get('value'), first_window)
         # All completed operations, excluding erroneous operations
         events_without_error = []
         # All completed operations, including erroneous operations
@@ -45,20 +77,8 @@ class LLM(Explorer):
         nodes_description_before = []
         steps = 0
 
-        t1 = threading.Thread(target=self._should_terminate_thread, args=(goal,))
-        t1.start()
-
-        # Termination condition
-        # self.terminated = self._should_terminate(window=first_window, goal=goal)
-        # logger.debug("terminated: " + str(terminated))
-        if self.terminated:
-            wtg.add_window(first_window)
-            ability_count.add(first_window.ability)
-
-        while not self.terminated and steps < goal.get('max_steps'):
-            # logger.debug("terminated: " + str(self.terminated))
+        while ((not self.terminated) if audio else self.terminated) and steps < max_steps:
             # Get interface before operation execution
-
             with self.lock:
                 window_before = self.device.dump_window(refresh=True)
 
@@ -92,15 +112,14 @@ class LLM(Explorer):
             # Verify operation result
             verify_result = self._verify_event(scenario, event_explanation, window_before, nodes_description_before,
                                                window_after, nodes_description_after)
-            # self.terminated = self._should_terminate(window=window_after, goal=goal)
 
             # If current operation is valid, add it to the completed operations list
             if verify_result["validity"]:
                 events_without_error.extend(events)
-                wtg.add_edge(window_before, window_after, events)
-                ability_count.add(window_before.ability)
-                ability_count.add(window_after.ability)
-                edges_count += 1
+                self.wtg.add_edge(window_before, window_after, events)
+                self.ability_count.add(window_before.ability)
+                self.ability_count.add(window_after.ability)
+                self.edges_count += 1
 
             # If verification result is complete, end exploration
             # if verify_result["goal_completion"] or (isinstance(events[0], KeyEvent) and events[0].key == SystemKey.HOME):
@@ -113,29 +132,11 @@ class LLM(Explorer):
             feedback.append("Suggested Next Steps: " + verify_result["next_steps"])
             logger.debug(f"Feedback: {feedback}")
 
-        end = time.time()
-        logger.debug("events_count: " + str(len(events_without_error)))
-        logger.debug("windows_count: " + str(len(wtg.windows)))
-        logger.debug("edges_count: " + str(edges_count))
-        logger.debug("ability_count: " + str(len(ability_count)))
-        logger.debug("total_time: %.2f seconds" % (end - start))
-        WTGParser.dump(wtg, goal.get('output_dir'))
-        t1.join()
+        self.events.extend(events_without_error)
 
-    # def _should_terminate(self, window, goal):
-    #     if goal.get('key') == ExploreGoal.TESTCASE:
-    #         return False
-    #     if goal.get('key') == ExploreGoal.HARDWARE:
-    #         if goal.get('value') == ResourceType.AUDIO:
-    #             # status = self.device.get_audio_status()
-    #             status = window.rsc.get(ResourceType.AUDIO)
-    #             if status in [AudioStatus.START, AudioStatus.START_, AudioStatus.DUCK]:
-    #                 logger.debug("Audio is playing, terminating exploration.")
-    #                 return True
-    #     return False
 
     def _should_terminate_thread(self, goal):
-        while True:
+        while not self.close:
             with self.lock:
                 window = self.device.dump_window(refresh=True)
             if goal.get('key') == ExploreGoal.TESTCASE:
@@ -144,11 +145,11 @@ class LLM(Explorer):
                 if goal.get('value') == ResourceType.AUDIO:
                     status = window.rsc.get(ResourceType.AUDIO)
                     if status in [AudioStatus.START, AudioStatus.START_, AudioStatus.DUCK]:
-                        logger.debug("Audio is playing, terminating exploration.")
+                        logger.debug("Audio is playing")
                         self.terminated = True
-                        return True
-                    # else:
-                    #     logger.debug("Audio is not playing")
+                    else:
+                        logger.debug("Audio is not playing")
+                        self.terminated = False
             time.sleep(1)
 
     def test(self, **goal):
@@ -156,74 +157,96 @@ class LLM(Explorer):
         t1.start()
         t1.join()
 
-
     def _understand(self, key, value, first_window=None):
         """
         Understand value to build scenario
         """
         logger.debug("-----------------------Building scenario based on value-----------------------")
+        scenario_list = []
         if key == ExploreGoal.TESTCASE:
             understanding_prompt = test_understanding_prompt.format(value)
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a UI Testing Assistant.",
-                    },
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": understanding_prompt},
+            retry = 0
+            while retry < self.max_retry:
+                try:
+                    response = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "You are a UI Testing Assistant.",
+                            },
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": understanding_prompt},
+                                ],
+                            },
                         ],
-                    },
-                ],
-                stream=False,
-            )
-            scenario = response.choices[0].message.content
-            logger.debug(scenario)
-            return scenario
+                        stream=False,
+                    )
+                    scenario_list.append(response.choices[0].message.content)
+                    break
+                except Exception as e:
+                    if "503" in str(e) and retry < self.max_retry:
+                        time.sleep(2)
+                        retry += 1
+                    else:
+                        raise e
+            logger.debug(scenario_list)
+            return scenario_list
         elif key == ExploreGoal.HARDWARE:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a UI Testing Assistant.", 
-                    },
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": first_window_understanding_prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(first_window.img)}"}}
+            retry = 0
+            audio_kind_str = ''
+            while retry < self.max_retry:
+                try:
+                    response = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "You are a UI Testing Assistant.",
+                            },
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": first_window_understanding_prompt},
+                                    {"type": "image_url",
+                                     "image_url": {"url": f"data:image/jpeg;base64,{encode_image(first_window.img)}"}}
+                                ],
+                            },
                         ],
-                    },
-                ],
-                stream=False,
-            )
-            app_kind = response.choices[0].message.content
-            scenario = ''
+                        stream=False,
+                    )
+                    audio_kind_str = response.choices[0].message.content
+                    break
+                except Exception as e:
+                    if "503" in str(e) and retry < self.max_retry:
+                        time.sleep(2)
+                        retry += 1
+                    else:
+                        raise e
+            # parse audio_kind_str to list
+            audio_kind_list = eval(audio_kind_str)
             if value == ResourceType.AUDIO:
-                if app_kind == 'Navigation':
-                    scenario = navigation_audio_prompt
-                elif app_kind == 'Music Player':
-                    scenario = music_player_audio_prompt
-                elif app_kind == 'Video Player':
-                    scenario = video_player_audio_prompt
-                elif app_kind == 'Social Media':
-                    scenario = social_media_audio_prompt
-                else:
-                    scenario = other_audio_prompt
+                for app_kind in audio_kind_list:
+                    if app_kind == 'Navigation':
+                        scenario_list.append(navigation_audio_prompt)
+                    elif app_kind == 'Music':
+                        scenario_list.append(music_audio_prompt)
+                    elif app_kind == 'Video':
+                        scenario_list.append(video_audio_prompt)
+                    elif app_kind == 'Communication':
+                        scenario_list.append(communication_audio_prompt)
             elif value == ResourceType.CAMERA:
-                scenario = camera_prompt
+                scenario_list.append(camera_prompt)
             elif value == ResourceType.MICRO:
-                scenario = micro_prompt
+                scenario_list.append(micro_prompt)
             elif value == ResourceType.KEYBOARD:
-                scenario = keyboard_prompt
+                scenario_list.append(keyboard_prompt)
             else:
                 logger.debug("Unknown hardware resource")
-            logger.debug(scenario)
-            return scenario
+            logger.debug(audio_kind_str)
+            return scenario_list
 
 
     def _nodes_detect(self, window):
@@ -310,22 +333,32 @@ class LLM(Explorer):
             content.append(
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(component)}"}})
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a UI Testing Assistant.",
-                },
-                {
-                    "role": "user",
-                    "content": content,
-                },
-            ],
-            stream=False,
-        )
-
-        response_text = response.choices[0].message.content
+        retry = 0
+        response_text = ''
+        while retry < self.max_retry:
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a UI Testing Assistant.",
+                        },
+                        {
+                            "role": "user",
+                            "content": content,
+                        },
+                    ],
+                    stream=False,
+                )
+                response_text = response.choices[0].message.content
+                break
+            except Exception as e:
+                if "503" in str(e) and retry < self.max_retry:
+                    time.sleep(2)
+                    retry += 1
+                else:
+                    raise e
 
         try:
             match = re.search(r'\[(.*)]', response_text, re.DOTALL)
@@ -364,26 +397,29 @@ class LLM(Explorer):
                 {"type": "image_url", "image_url": {
                     "url": f"data:image/jpeg;base64,{encode_image(window.img)}"}}]}, ]
 
-        # Call LLM API
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                stream=False,
-            )
-            event_str = response.choices[0].message.content
+        retry = 0
+        event_str = ''
+        while retry < self.max_retry:
             try:
-                # Try to parse JSON
-                event_json = json.loads(event_str)
-            except json.JSONDecodeError as e:
-                event_json = json.loads(re.search(r'\{.*}', event_str, re.DOTALL).group(0))
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    stream=False,
+                )
+                event_str = response.choices[0].message.content
+                break
+            except Exception as e:
+                if "503" in str(e) and retry < self.max_retry:
+                    time.sleep(2)
+                    retry += 1
+                else:
+                    raise e
 
-            logger.debug(f"Next action returned by LLM: {str(event_json)}", )
-
-
-        except Exception as e:
-            logger.debug(f"Failed to call LLM API: {e}")
-            return {"action": "error", "message": str(e)}
+        try:
+            event_json = json.loads(event_str)
+        except json.JSONDecodeError as e:
+            event_json = json.loads(re.search(r'\{.*}', event_str, re.DOTALL).group(0))
+        logger.debug(f"Next action returned by LLM: {str(event_json)}", )
 
         events_list = []
         event_explanation = ''
@@ -458,13 +494,24 @@ class LLM(Explorer):
 
         messages.append(user_message)
 
-        # Call LLM API
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            stream=False,
-        )
-        verify_result_str = response.choices[0].message.content
+        retry = 0
+        verify_result_str = ''
+        while retry < self.max_retry:
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    stream=False,
+                )
+                verify_result_str = response.choices[0].message.content
+                break
+            except Exception as e:
+                if "503" in str(e) and retry < self.max_retry:
+                    time.sleep(2)
+                    retry += 1
+                else:
+                    raise e
+
         logger.debug(f"Verification result: {verify_result_str}")
 
         # Parse JSON

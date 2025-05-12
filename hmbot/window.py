@@ -8,7 +8,7 @@ class Window(object):
         self.img = img
         self.rsc = rsc
         self.ability = ability
-        # self.bundle = ''
+        self.audio_type = None
         # roots = vht.roots()
         # self._pages = []
         # for root in roots:

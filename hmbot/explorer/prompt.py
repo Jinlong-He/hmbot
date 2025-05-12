@@ -44,64 +44,118 @@ Example answers:
 ```
 """
 
+
 first_window_understanding_prompt = """
 ## Task
-Analyze the provided screenshot of a mobile application interface and determine its category.
+Analyze the provided screenshot of a mobile application interface and determine what types of audio content it might contain.
 
-## Categories
-- Navigation
-- Music Player
-- Video Player
-- Social Media
-- Other
+## Audio Categories
+- Navigation (voice guidance)
+- Music (music playback)
+- Video (video with audio or live streaming)
+
+## Instructions
+Carefully examine the interface elements, icons, buttons, and layout to identify features that suggest audio capabilities.
+Look for:
+- Media controls (play, pause, skip buttons, music player icons, equalizer, playlist)
+- Navigation maps or direction indicators
+- Video thumbnails or players
+- Live streaming indicators or broadcast buttons
+- Audio visualization elements
 
 ## Output Format
-Return ONLY the category name as a single string, without any explanations or additional text.
+Return ONLY a list containing the identified audio categories. You must choose from these 4 categories only:
+- Navigation
+- Music
+- Video
 
-Example response:
-"Navigation"
-"Music Player"
+Example responses:
+["Music", "Video"]
+["Navigation"]
+"""
+
+audio_off_prompt = """
+## Task Scenario: Audio Playback Termination
+You are exploring how to stop currently playing audio. Your primary goal is to find and use the correct controls to stop the current audio playback.
+
+## Background
+Applications may play audio through various features, including music playback, video playback, navigation voice guidance, or calls. The method to stop audio will differ depending on the audio type.
+
+## Testing Objective
+Successfully stop the currently playing audio. Please identify the current audio type based on interface characteristics and take appropriate action:
+
+1. If it's music playback:
+   - Look for and click the pause button (typically a pause icon)
+   - If there's no obvious pause button, try clicking on the currently playing content
+   - Check other controls in the playback control area
+
+2. If it's video playback:
+   - Look for and click the pause button
+   - Or click on the video screen itself (many apps support clicking on the video to pause)
+   - If you need to completely stop rather than pause, look for close, back, or exit buttons
+
+3. If it's navigation voice guidance:
+   - Look for and click stop navigation or end navigation buttons
+   - Check the navigation control area for volume or mute buttons
+   - Try clicking the back button to exit navigation mode
+
+4. If it's call audio:
+   - Look for and click the red hang-up button
+   - Or look for end call, hang up, or related buttons
+   - If it's a voice/video conference, look for leave meeting or end meeting options
+
+## Success Criteria
+The test is considered successful when:
+- Music playback: Play button changes from pause state back to play state, or the progress bar stops moving
+- Video playback: Video screen stops playing, or the app exits the video playback interface
+- Navigation voice: Navigation is stopped, voice prompts no longer play, or the app exits navigation mode
+- Call audio: The call is disconnected, call interface disappears
+
+Focus on ensuring that the audio has completely stopped playing. You do not need to verify other functions - simply confirming that the audio has stopped is sufficient to consider the test successfully completed.
 """
 
 navigation_audio_prompt = """
-## Task Scenario: Navigation Application Testing
-You are testing a navigation application. Your primary goal is to complete a navigation task by successfully initiating the navigation process.
+## Task Scenario: Navigation Audio Exploration
+You are exploring applications to find and test navigation voice guidance functionality. Your primary goal is to activate voice guidance features in any application that might provide them.
 
 ## Background
-Navigation applications provide route guidance from the current location to a destination. The core functionality involves searching for a destination and starting the navigation process.
+Many applications provide voice guidance features, including dedicated navigation apps, map services, fitness tracking apps, and even some ride-sharing or delivery services. The core functionality involves initiating a guided journey with audio instructions.
 
 ## Testing Objective
-Successfully start the navigation process in the application. This requires completing the following steps:
+Successfully activate voice guidance in the application. This requires completing the following steps:
 
-1. Find a search bar or destination input field in the application interface
-2. Enter a common destination (such as "airport", "train station", or "city center")
-3. Select an appropriate destination from the search results
-4. Click the start navigation or route planning button
-5. Confirm any prompts or dialogs to begin navigation
+1. Find a search bar or destination input field in the interface
+2. If you see any history destinations or suggested locations after clicking the search bar, select one directly
+3. If no history or suggestions are available, enter a common destination (such as "airport", "train station", or "city center")
+4. Select an appropriate destination from the search results
+5. Look for and activate navigation or route planning features
+6. Confirm any prompts or dialogs to begin guidance
+7. Ensure voice guidance is enabled in the settings (if not enabled by default)
 
 ## Success Criteria
-The test is considered successful as soon as the navigation process begins. This is typically indicated by:
-- The application displaying a route on the map
-- The interface changing to navigation mode
+The test is considered successful when voice guidance is activated. This is typically indicated by:
+- A route displayed on a map
+- The interface changing to a guidance mode
 - Navigation controls becoming visible
-- Navigation has actually started running with active guidance
+- Active guidance running with voice instructions
+- Voice prompts being played through the device speaker (such as "Turn right in 200 meters")
 
-You do not need to wait for or confirm voice guidance - simply ensuring that the navigation process has actually initiated and is actively running is sufficient to consider the test successful.
+Focus on ensuring that the voice guidance feature is working properly, as this is the primary audio functionality being tested. You do not need to complete the entire navigation journey - simply confirming that voice guidance has been activated is sufficient.
 """
 
-music_player_audio_prompt = """
-## Task Scenario: Music Player Application Testing
-You are testing a music player application. Your primary goal is to successfully play music through the device's speaker.
+music_audio_prompt = """
+## Task Scenario: Music Audio Exploration
+You are exploring applications to find and test music playback functionality. Your primary goal is to activate music playback features in any application that might provide them.
 
 ## Background
-Music player applications are designed to play audio files. The core functionality involves browsing music libraries, selecting tracks, and playing audio content.
+Many applications provide music playback features, including dedicated music players, streaming services, video platforms with music content, social media apps, and even some games or fitness apps. The core functionality involves selecting and playing audio content.
 
 ## Testing Objective
-Successfully play a music track in the application. This requires completing the following steps:
+Successfully play music in the application. This requires completing the following steps:
 
 1. Look for and click any prominent play button on the main screen - if available, this is the quickest way to start playback
-2. If no direct play button is available, navigate through the music library or collection interface
-3. Look for music categories such as songs, albums, artists, or playlists
+2. If no direct play button is available, navigate through the content library or collection interface
+3. Look for music categories such as songs, albums, artists, playlists, or recommended content
 4. Select any available music track, album, or playlist
 5. Activate the play function to start audio playback
 6. Verify playback status: Check if the play button has changed to a pause button and if the playback progress is moving
@@ -114,59 +168,73 @@ The test is considered successful as soon as music playback begins. This is typi
 - Track information being displayed
 - You may hear audio playing through the device speaker
 
-You do not need to evaluate the audio quality or complete playback of the entire track - simply initiating music playback is sufficient to consider the test successful. However, please ensure that playback has actually started, not just that a track has been selected but not yet playing.
+Focus on ensuring that the music playback feature is working properly, as this is the primary audio functionality being tested. You do not need to evaluate the audio quality or complete playback of the entire track - simply initiating music playback is sufficient to consider the test successful. However, please ensure that playback has actually started, not just that a track has been selected but not yet playing.
 """
 
-video_player_audio_prompt = """
-## Task Scenario: Video Player Application Testing
-You are testing a video player application. Your primary goal is to successfully play a video that produces sound through the device's speaker.
+video_audio_prompt = """
+## Task Scenario: Video Playback Exploration
+You are exploring applications to find and test video playback functionality. Your primary goal is to activate video playback features in any application that might provide them, including both regular videos and live streaming content.
 
 ## Background
-Video player applications are designed to play video files with accompanying audio. The core functionality involves browsing video libraries, selecting videos, and playing content.
+Many applications provide video playback features, including dedicated video players, streaming platforms, social media apps, news applications, educational apps, and even some games or fitness apps. The core functionality involves selecting and playing video content, which may include pre-recorded videos or live streams.
 
 ## Testing Objective
-Successfully play a video with audio in the application. This requires completing the following steps:
+Successfully play a video in the application. This requires completing the following steps:
 
-1. Look for and click any prominent play button on the main screen - if available, this is the quickest way to start playback
-2. If no direct play button is available, navigate through the video library or collection interface
-3. Look for video categories such as recent, popular, recommended, etc.
-4. Select any available video content
-5. Activate the play function to start video playback
+1. Look for and click any prominent video thumbnail or video play button on the main screen - if available, this is the quickest way to start playback
+2. If no direct video play option is available, navigate through the video content library or collection interface
+3. Look for video categories such as recent videos, popular videos, recommended videos, trending videos, featured video content, or live streams
+4. Pay special attention to any "Live" or "Streaming" sections, as these contain real-time video content
+5. Select any available video content (either pre-recorded or live stream) - IMPORTANT: ensure it is actual video content with visual elements, NOT audio-only or music content
+6. Activate the play function to start video playback
+7. Verify playback status: Check if the video is playing with visible video content on screen
 
 ## Success Criteria
 The test is considered successful as soon as video playback begins. This is typically indicated by:
-- Video content starting to play with visible playback controls
+- Video content (recorded or live) starting to play with visible video frames on screen
 - Play button changing to pause button
-- Playback progress indicators becoming active
+- Playback progress indicators becoming active (for pre-recorded videos)
 - Video information being displayed
+- Live indicator showing for streaming content
+- Visual content clearly visible on screen
 
-You do not need to evaluate the video quality or complete playback of the entire video - simply initiating video playback is sufficient to consider the test successful.
+## Important Restrictions
+- STRICTLY AVOID selecting or playing music-only content without visual elements
+- Do NOT test audio-only features or music players
+- Focus EXCLUSIVELY on content that has visual video components
+- If you encounter a music player or audio-only content, continue searching for proper video content
+
+Focus on ensuring that the video playback feature is working properly, as this is the primary functionality being tested. You do not need to evaluate the video quality or complete playback of the entire video - simply initiating video playback is sufficient to consider the test successful. Both regular video playback and live streaming are considered valid forms of video content for this test.
 """
 
-social_media_audio_prompt = """
-## Task Scenario: Social Media Application Testing
-You are testing a social media application. Your primary goal is to find and activate any feature that produces sound through the device's speaker.
+communication_audio_prompt = """
+## Task Scenario: Communication Audio Exploration
+You are exploring applications to find and test communication audio functionality. Your primary goal is to activate voice or audio communication features in any application that might provide them.
 
 ## Background
-Social media applications typically offer multiple features that may produce sound, such as video playback, voice messages, video calls, and more.
+Many applications provide communication audio features, including messaging apps, social platforms, video conferencing tools, VoIP services, and even some productivity or collaboration apps. The core functionality involves voice messages, audio/video calls, voice notes, or other forms of audio communication.
 
 ## Testing Objective
-Find and activate any sound-producing feature in the social media application. You can try several approaches:
+Successfully activate any audio communication feature in the application. Try the following approaches in order of priority:
 
 1. Look for and play any video content or live streams - if you see any videos or live streaming content, click on them directly as they are the most likely to produce audio
 2. Look for voice messages or voice memos features and play any available voice content
 3. Try initiating a voice or video call (if supported by the app and safe in a test environment)
-4. Look for and tap on any content or buttons with sound icons
-5. Check notification sound settings or other system features that might trigger sounds
+4. Look for and tap on any content or buttons with sound icons or microphone symbols
+5. Check for voice note recording features in messaging or note-taking interfaces
+6. Look for voice assistant or voice command features
+7. Check notification sound settings or other system features that might trigger communication sounds
 
 ## Success Criteria
-The test is considered successful when the application produces any audible sound through the device's speaker. This could come from:
-- Video or audio content playback
+The test is considered successful when the application produces any audible sound related to communication. This could come from:
+- Voice message or voice note playback
 - Call ringtones or connection sounds
-- Notification or alert sounds
-- Any other in-app audio feature
+- Voice or video call audio
+- Voice assistant responses
+- Notification or alert sounds for messages
+- Any other communication-related audio feature
 
-As long as the application produces any sound, regardless of the source, the test is considered successfully completed.
+Focus on ensuring that the communication audio feature is working properly. You do not need to complete an entire communication session - simply confirming that the audio communication feature has been activated is sufficient to consider the test successful.
 """
 
 other_audio_prompt = """
