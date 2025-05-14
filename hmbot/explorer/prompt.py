@@ -47,86 +47,156 @@ Example answers:
 
 first_window_understanding_prompt = """
 ## Task
-Analyze the provided screenshot of a mobile application interface and determine what types of audio content it might contain.
+Based on the provided screenshot of a mobile application interface, identify which types of audio content the app likely contains or supports.
 
-## Audio Categories
-- Navigation (voice guidance)
-- Music (music playback)
-- Video (video with audio or live streaming)
-- Communication (voice/video calls with friends, voice messages)
+## Audio Categories to Identify
+- Navigation: Voice guidance for directions and location-based instructions
+- Music: Music playback, streaming services, audio players
+- Video: Video players with audio, live streams, or multimedia content
+- Communication: Voice/video calls
 
-## Instructions
-Carefully examine the interface elements, icons, buttons, and layout to identify features that suggest audio capabilities.
-Look for:
-- Media controls (play, pause, skip buttons, music player icons, equalizer, playlist)
-- Navigation maps or direction indicators
-- Video thumbnails or players
-- Live streaming indicators or broadcast buttons
-- Audio visualization elements
-- Communication icons (phone, video call, voice message, friend contacts, chat bubbles)
+## Analysis Guidelines
+Examine the interface elements to identify audio-related features:
+- Look for media controls: play/pause buttons, playback sliders, volume controls
+- Identify navigation elements: maps, route indicators, direction markers
+- Check for video content: video thumbnails, player controls, streaming indicators
+- Spot communication features: call buttons, voice message icons, contact lists, navigation bars with "Messages" tabs
 
-## Important Tips
-First determine the application category:
-- Navigation apps: Focus on navigation audio features only. ALWAYS ignore Communication category for navigation apps.
-- Video apps: Focus on video playback features
-- Music apps: Focus on music playback features
-- Social/Messaging apps: These may have communication features (friends, contacts, messages)
-- Other apps: Look for communication-related elements like "Messages", "Contacts", "Friends", "Chat" tabs or buttons. If you see any of these elements, the app likely has Communication features.
+## Application Type Considerations
+Different app categories typically support different audio types:
+- Navigation apps: ONLY include Navigation category and IGNORE all other categories
+- Media apps: May include Music and/or Video features
+- Social/Messaging apps: Often include Communication features (calls, voice messages)
+- Other apps: May include any audio category based on visible UI elements
 
-Note that Communication features (voice/video calls, voice messages) are typically found in social or messaging applications, but may also exist in other app types if you see messaging or contact-related UI elements. For navigation apps, you MUST completely ignore the Communication category.
-Important: "Community", "Forum", "Comments", "Social" or similar tabs/sections that only allow text-based interactions should NOT be considered as Communication features. Communication category should ONLY be identified when there are clear indicators of voice/video calls or voice messaging capabilities.
+## Important Rules
+1. For navigation apps, ONLY include Navigation category and IGNORE all other categories (Music, Video, Communication)
+2. Communication features require clear indicators of voice/video calls
+3. Apps with "消息" (Messages), "聊天" (Chat), or similar options in the navigation bar typically include Communication features
+4. Text-only interactions (comments, forums, text chat) are NOT considered Communication audio features
+5. Only select categories with clear visual evidence in the interface
 
 ## Output Format
-Return ONLY a list containing the identified audio categories. You must choose from these categories only:
-- Navigation
-- Music
-- Video
-- Communication
+Return ONLY a array containing the identified audio categories, chosen from:
+["Navigation", "Music", "Video", "Communication"]
 
 Example responses:
-["Music", "Video"]
 ["Navigation"]
-["Communication", "Video"]
+["Music", "Video"]
+["Video", "Communication"]
 """
 
 audio_off_prompt = """
-## Task Scenario: Audio Playback Termination
-You are exploring how to stop currently playing audio. Your primary goal is to find and use the correct controls to stop the current audio playback.
+## Task: Stop Currently Playing Audio
 
-## Background
-Applications may play audio through various features, including music playback, video playback, navigation voice guidance, or calls. The method to stop audio will differ depending on the audio type.
+## Objective: Use the correct interface controls to completely stop any audio currently playing in the application.
 
-## Testing Objective
-Successfully stop the currently playing audio. Please identify the current audio type based on interface characteristics and take appropriate action:
+## Background Context: Applications may play audio through music, video, navigation, or call features. While the exact methods to stop audio may vary, they typically follow some common interaction patterns.
 
-1. If it's music playback:
-   - Look for and click the pause button (typically a pause icon)
-   - If there's no obvious pause button, try clicking on the currently playing content
-   - Check other controls in the playback control area
+## Recommended Methods to Stop Audio:
+1. If currently on a music playback interface, directly click the play/pause button.
+2. If currently on a video playback interface:
+   - Click the play/pause button.
+   - Click on any exit icon that may appear in the top-right corner.
+   - Click on different main sections in the bottom navigation bar (e.g., "Home", "Messages", "Profile", "Settings").
+3. If currently on a call interface, directly click the hang-up button.
+4. If currently on a navigation interface, exit the navigation state.
+5. If currently on another interface, click on any exit icon that may appear in the top-right corner.
 
-2. If it's video playback:
-   - Look for and click the pause button
-   - Or click on the video screen itself (many apps support clicking on the video to pause)
-   - If you need to completely stop rather than pause, look for close, back, or exit buttons
+## Success Confirmation:
+Once the audio completely stops, the test is considered successful. Signs of success include:
+   - Any visible playback controls (e.g., play/pause button) returning to their initial or "paused" state.
+   - Video interface showing a pause indicator.
+   - Audio player interface or overlay closing, minimizing, or disappearing.
+"""
 
-3. If it's navigation voice guidance:
-   - Look for and click stop navigation or end navigation buttons
-   - Check the navigation control area for volume or mute buttons
-   - Try clicking the back button to exit navigation mode
 
-4. If it's call audio:
-   - Look for and click the red hang-up button
-   - Or look for end call, hang up, or related buttons
-   - If it's a voice/video conference, look for leave meeting or end meeting options
 
-## Success Criteria
-The test is considered successful when:
-- Music playback: Play button changes from pause state back to play state, or the progress bar stops moving
-- Video playback: Video screen stops playing, or the app exits the video playback interface
-- Navigation voice: Navigation is stopped, voice prompts no longer play, or the app exits navigation mode
-- Call audio: The call is disconnected, call interface disappears
+# audio_off_prompt = """
+# ## Task Scenario: Audio Termination
+# You are exploring how to stop currently playing audio. Your primary goal is to find and use the correct controls to stop the current audio playback.
 
-Focus on ensuring that the audio has completely stopped playing. You do not need to verify other functions - simply confirming that the audio has stopped is sufficient to consider the test successfully completed.
+# ## Background
+# Applications may play audio through various features. The method to stop audio may vary but generally follows similar patterns.
+
+# ## Testing Objective
+# Successfully stop the currently playing audio by following these steps in order:
+# 1. Try clicking tabs in the bottom navigation bar (like "Messages", "Home", or other sections) to navigate away from the current screen
+#    - This is often the quickest way to exit audio playback in many applications
+#    - If navigating away doesn't stop the audio, proceed with the steps below
+
+# 2. Try pressing the back button
+#    - If the back button doesn't stop the audio, proceed with the steps below
+
+# 3. Look for and try these common controls:
+#    - Pause/Stop button (typically shown as a pause or stop icon)
+#    - Close or exit buttons (usually in corners or as overlay controls)
+#    - Click on the playing content itself (many apps support this for pausing)
+
+# ## Success Criteria
+# The test is considered successful when the audio has stopped playing, typically indicated by:
+# - Playback controls returning to initial state
+# - Progress indicators stopping
+# - Audio interface closing or exiting
+# - No sound coming from device speaker
+
+# Focus on ensuring that the audio has completely stopped playing. You do not need to verify other functions - simply confirming that the audio has stopped is sufficient to consider the test successfully completed.
+# """
+
+first_window_audio_prompt = """
+## Task
+Analyze the provided screenshot of a mobile application interface where audio is currently playing. Identify which type of audio is playing based on the visual elements and interface context.
+
+## Audio Categories
+The audio must be classified as exactly ONE of these four types:
+- Navigation: Voice guidance for directions and location-based instructions
+- Music: Music playback, streaming services, audio players
+- Video: Video players with audio, live streams, or multimedia content
+- Communication: Voice/video calls, voice messages
+
+## Analysis Guidelines
+Look for clear visual indicators that show which type of audio is currently playing:
+
+For Navigation audio:
+- Map displays with route highlighting
+- Turn-by-turn instruction panels
+- Distance/time remaining indicators
+- Direction arrows or movement indicators
+
+For Music audio:
+- Music player interfaces with album art
+- Song title, artist information
+- Playback controls (play/pause, skip, etc.)
+- Progress bars showing track timeline
+- Playlist or queue information
+
+For Video audio:
+- Video content visible on screen
+- Video player controls
+- Video timeline/progress bar
+- Video title or description
+- Resolution or quality controls
+
+For Communication audio:
+- Call interface with contact information
+- Call duration timer
+- Microphone mute/unmute controls
+- Speaker controls
+- Contact photo or avatar
+- Voice message playback interface
+
+## Important Rules
+1. Select ONLY ONE category that best matches the current playing audio
+2. Focus on the most prominent audio-related interface elements
+3. If multiple audio types appear possible, prioritize based on which interface elements are most active or in focus
+4. Base your decision on visual evidence in the interface, not assumptions
+
+## Output Format
+Return ONLY one of these four strings, without any additional text:
+navigation
+music
+video
+communication
 """
 
 navigation_audio_prompt = """
@@ -140,10 +210,10 @@ Many applications provide voice guidance features, including dedicated navigatio
 Successfully activate voice guidance in the application. This requires completing the following steps:
 
 1. Find a search bar or destination input field in the interface
-2. If you see any history destinations or suggested locations after clicking the search bar, select one directly
-3. If no history or suggestions are available, enter a common destination (such as "airport", "train station", or "city center")
-4. Select an appropriate destination from the search results
-5. Look for and activate navigation or route planning features
+2. If you see any history destinations, suggested locations, or popular destinations, select one directly by clicking on it
+3. If no direct destination options are visible, only then enter a common destination (such as "airport", "train station", or "city center")
+4. After selecting or searching for a destination, look for and click on the most relevant result
+5. Look for and activate navigation or route planning features (usually a "Start", "Go", or "Navigate" button)
 6. Confirm any prompts or dialogs to begin guidance
 7. Ensure voice guidance is enabled in the settings (if not enabled by default)
 
@@ -195,7 +265,6 @@ Many applications provide video playback features, including dedicated video pla
 
 ## Testing Objective
 Successfully play a video in the application. This requires completing the following steps:
-
 1. Look for and click any prominent video thumbnail or video play button on the main screen - if available, this is the quickest way to start playback
 2. If no direct video play option is available, navigate through the video content library or collection interface
 3. Look for video categories such as recent videos, popular videos, recommended videos, trending videos, featured video content, or live streams
@@ -232,13 +301,16 @@ Many applications provide communication audio features, including messaging apps
 ## Testing Objective
 Successfully activate voice or video call functionality in the application. Follow these steps in order:
 
-1. Look for tabs, buttons, or sections labeled "Contacts," "Friends," "Messages," "Chats," or similar social connection features
+1. Look for tabs, buttons, or sections labeled "Messages", "Contacts", "Chats" or similar social connection features
 2. Navigate to the contacts or friends list section of the application
 3. Select any available contact or friend from the list
 4. Look for call buttons - typically represented by phone icons (for voice calls) or camera/video icons (for video calls)
-5. Tap on the voice call or video call button to initiate a call
+   - If both voice call and video call options are available, ALWAYS prioritize and choose the voice call option
+   - If there is only a combined call button, click it and then select voice call if prompted
+5. Tap on the selected call button to initiate a call
 6. If prompted for permissions to access microphone or camera, grant the permissions
 7. Wait for the call to connect or for the calling interface to appear
+8. IMPORTANT: Once the call interface appears, look for and tap the speaker or loudspeaker button to enable audio output through the device speaker
 
 ## Success Criteria
 The test is considered successful when the application initiates a call. This is typically indicated by:
@@ -247,14 +319,16 @@ The test is considered successful when the application initiates a call. This is
 - Call timer starting
 - Microphone activation indicators appearing
 - Call control buttons (mute, speaker, end call) becoming visible
+- Speaker mode is enabled (speaker icon is highlighted or active)
 
 Focus on initiating the call functionality - you do not need to complete an entire call session. Simply confirming that the call feature has been activated is sufficient to consider the test successful.
 
 ## Important Notes
 - Prioritize finding actual contacts/friends lists rather than general messaging features
 - Look specifically for direct call buttons rather than messaging or other communication options
-- If the app requires login, look for test or demo options that might allow access to calling features
+- ALWAYS prioritize voice calls over video calls when both options are available
 - Avoid any features related to video content, music playback, or live streaming - focus exclusively on person-to-person communication
+- Always ensure the speaker is turned on when the call interface appears, as this is essential for audio testing
 """
 
 other_audio_prompt = """
@@ -436,20 +510,20 @@ Consider the following when making your decision:
 ## Available Operations
 You can only choose from the following types of actions:
 1. "click": Specify the element ID from the provided list
-2. "input": Specify the element ID and the text to be entered
-3. "swipe": Specify the direction ("up", "down", "left", "right")
-4. "back": Press the back button
+2. "swipe": Specify the direction ("up", "down", "left", "right")
+3. "back": Press the back button
 
 ## Response Format
 Return your decision strictly in the following JSON format, without any explanatory language:
 {{"event_type": "click", "element_id": 3}}
-{{"event_type": "input", "element_id": 2, "text": "测试文本"}}
 {{"event_type": "swipe", "direction": "up"}}
 {{"event_type": "back"}}
 """
 
 # 5. "home": Return to the home screen (close the application)
 # {{"event_type": "home"}}
+# {{"event_type": "input", "element_id": 2, "text": "测试文本"}}
+# 2. "input": Specify the element ID and the text to be entered
 
 
 verify_prompt = """

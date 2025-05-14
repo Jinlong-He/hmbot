@@ -42,18 +42,27 @@ class LLM(Explorer):
         # The large model understands the first window to get the kind of scenarios
         scenario_list = self._understand(goal.get('key'), goal.get('value'), first_window)
 
-        # If there is only one scene and audio is enabled, then immediately end the exploration
-        if self.terminated and len(scenario_list) == 1:
-            self.wtg.add_window(first_window)
-            self.ability_count.add(first_window.ability)
+        # Determine exploration strategy based on scenario list length
+        if len(scenario_list) == 1:
+            # Single scenario case
+            if self.terminated:
+                first_window.audio_type = self._understand_first_window_audio(first_window)
+                self.wtg.add_window(first_window)
+                self.ability_count.add(first_window.ability)
+            else:
+                self._explore(scenario_list[0], audio=True, max_steps=goal.get('max_steps'))
         else:
-            if self.terminated and len(scenario_list) > 1:
-                self._explore(audio_off_prompt, audio=False, max_steps=goal.get('max_steps'))
+            # Multiple scenarios case
+            if self.terminated:
+                self._explore((AudioType.VIDEO, audio_off_prompt), audio=False, max_steps=goal.get('max_steps'))
+            # Explore other scenarios
+            scenario_list.pop(0)
             for index, scenario in enumerate(scenario_list):
                 self._explore(scenario, audio=True, max_steps=goal.get('max_steps'))
                 # After completing each exploration, close all audio and proceed to the next exploration
                 if self.terminated and index < len(scenario_list) - 1:
                     self._explore((scenario[0], audio_off_prompt), audio=False, max_steps=goal.get('max_steps'))
+
 
         end = time.time()
         logger.debug("events_count: " + str(len(self.events)))
@@ -113,12 +122,6 @@ class LLM(Explorer):
             with self.lock:
                 window_after = self.device.dump_window(refresh=True)
             nodes_description_after, nodes_after = self._nodes_detect(window_after)
-            # self.terminated = self._should_terminate(window=window_after, goal=goal)
-
-            if isinstance(events[0], KeyEvent) and events[0].key == SystemKey.BACK:
-                # Back operation doesn't need verification
-                nodes_description_before, nodes_before = nodes_description_after, nodes_after
-                continue
 
             # Verify operation result
             verify_result = self._verify_event(scenario, event_explanation, window_before, nodes_description_before,
@@ -167,10 +170,37 @@ class LLM(Explorer):
                         self.terminated = False
             time.sleep(1)
 
+
+    def _understand_first_window_audio(self, first_window):
+        """
+        Understand the audio type of the first window
+        """
+        retry = 0
+        while retry < self.max_retry:
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "You are a UI Testing Assistant."},
+                        {"role": "user", "content": [
+                            {"type": "text", "text": first_window_audio_prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(first_window.img)}"}}
+                        ]},
+                    ],
+                    stream=False,
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                if "503" in str(e) and retry < self.max_retry:
+                    time.sleep(2)
+                    retry += 1
+                else:
+                    raise e
+    
+
     def test(self, **goal):
-        t1 = threading.Thread(target=self._should_terminate_thread, args=(goal,))
-        t1.start()
-        t1.join()
+        print(self._understand_first_window_audio(self.device.dump_window(refresh=True)))
+
 
     def _understand(self, key, value, first_window=None):
         """
