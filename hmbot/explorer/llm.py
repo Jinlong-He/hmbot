@@ -2,8 +2,6 @@ import json
 import re
 import threading
 import time
-
-from IPython.core.debugger import prompt
 # import cv2
 from loguru import logger
 from openai import OpenAI
