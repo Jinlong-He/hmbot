@@ -16,6 +16,7 @@ import shutil
 class HMBot(object):
     def __init__(self, os, serials, llm_config):
         self.os = os
+        self.serials = serials
         self.devices = []
         self.llm_config = llm_config
         self.app = None
@@ -30,11 +31,11 @@ class HMBot(object):
         genarator = None
 
         if resource_type == ResourceType.AUDIO:
-            genarator = AudioGenerator(wtg, self.devices)
+            genarator = AudioGenerator(wtg, self.os, self.serials)
 
         if genarator:
-            genarator.generate_test_case()
-            genarator.execute_test_case()
+            test_file = genarator.generate_test_case()
+            genarator.execute_test_case(test_file)
 
     def explore(self, args):
         if args.os == OperatingSystem.HARMONY:
@@ -140,6 +141,7 @@ class HMBot(object):
                 device.stop_app(bundle_other)
 
     def event_to_status(self, resource_type, status, wtg=None):
+        # to modify
         if not wtg:
             wtg = self
         all_paths = []
@@ -158,6 +160,6 @@ class HMBot(object):
                 new_events_path = events_path + [events]
                 dfs(neighbor, new_path, new_events_path)
 
-        for main_window in wtg.main_windows:
-            dfs(main_window, [main_window], [])
+        for window in wtg.windows:
+            dfs(window, [window], [])
         return all_paths

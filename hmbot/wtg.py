@@ -1,6 +1,7 @@
+from .vht import VHTNode
 from .window import Window
-from .event import Event
-import json, re
+from .event import *
+import json
 
 class WTG(object):
     def __init__(self):
@@ -51,11 +52,64 @@ class WTG(object):
                         'edge': edge_list})
         return res
 
-
-
 class WTGParser(object):
-    def parse(cls, file):
+    def parse(self, file):
+        with open(file, 'r') as f:
+            json_data = json.load(f)
         wtg = WTG()
+
+        windows = []
+        for item in json_data:
+            window_info = item['info']
+            vht = window_info['vht']
+            img = window_info['img']
+            rsc = window_info['rsc']
+            ability = window_info['ability']
+            bundle = window_info['bundle']
+            window = Window(vht, img, rsc, ability, bundle)
+            wtg.add_window(window)
+            windows.append(window)
+
+        for src_id, item in enumerate(json_data):
+            src_window = windows[src_id]
+            for edge in item['edge']:
+                tgt_id = edge['target_id']
+                tgt_window = windows[tgt_id]
+                events = []
+                for event_data in edge['events']:
+                    event = None
+                    type = event_data['type']
+                    if type in ['Click']:
+                        center = json.loads(event_data['node']['center'])
+                        attrib = {
+                            "center": center
+                        }
+                        node = VHTNode(None, attrib)
+                        event = ClickEvent(node)
+                    elif type in ['LongClick']:
+                        center = json.loads(event_data['node']['center'])
+                        attrib = {
+                            "center": center
+                        }
+                        node = VHTNode(None, attrib)
+                        event = LongClickEvent(node)
+                    elif type in ['Input']:
+                        center = json.loads(event_data['node']['center'])
+                        attrib = {
+                            "center": center
+                        }
+                        node = VHTNode(None, attrib)
+                        text = event_data['node']['text']
+                        event = InputEvent(node, text)
+                    elif type in ['SwipeExt']:
+                        event = SwipeExtEvent(None, None, event_data['direction'])
+                    elif type in ['Key']:
+                        event = KeyEvent(None, None, event_data['key'])
+                    elif type in ['StartApp']:
+                        event = StartAppEvent(None, event_data['app'])
+                    if event:
+                        events.append(event)
+                wtg._adj_list[src_window][tgt_window] = events
         return wtg
 
     @classmethod
