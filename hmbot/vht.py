@@ -116,10 +116,12 @@ class VHTNode(object):
              if key in ['clickable', 'longClickable', 'selected', 'checkable', 'checked']:
                 if value == 'true' or node.attribute[key] == 'true':
                     self.attribute[key] = 'true'
-        if node.attribute['text'] not in self.attribute['text']:
-            self.attribute['text'] += '|' + node.attribute['text']
+        if self.attribute['text'] == '':
+            self.attribute['text'] = node.attribute['text']
+        elif node.attribute['text'] not in self.attribute['text']:
+            self.attribute['text'] += ',' + node.attribute['text']
         if node.attribute['type'] not in self.attribute['type']:
-            self.attribute['type'] += '|' + node.attribute['type']
+            self.attribute['type'] = node.attribute['type']
         self._compressed.add(node)
         self._compressed.add(self)
     

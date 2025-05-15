@@ -2,6 +2,8 @@ import json
 import re
 import threading
 import time
+
+from IPython.core.debugger import prompt
 # import cv2
 from loguru import logger
 from openai import OpenAI
@@ -21,13 +23,29 @@ class LLM(Explorer):
         self.terminated = False
         self.lock = threading.Lock()
         self.close = False
-        self.max_retry = 3
         self.wtg = WTG()
         self.events = []
         self.ability_count = set()
         self.edges_count = 0
 
-
+    def _ask(self, prompt, retry=3):
+        """
+        Get response from LLM
+        """
+        while retry > 0:
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "You are an expert in mobile phone operations."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    stream=False,
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                logger.error(e)
+                retry -= 1
 
     def explore(self, **goal):
         start = time.time()
@@ -55,14 +73,13 @@ class LLM(Explorer):
             # Multiple scenarios case
             if self.terminated:
                 self._explore((AudioType.VIDEO, audio_off_prompt), audio=False, max_steps=goal.get('max_steps'))
+                scenario_list.pop(0)
             # Explore other scenarios
-            scenario_list.pop(0)
             for index, scenario in enumerate(scenario_list):
                 self._explore(scenario, audio=True, max_steps=goal.get('max_steps'))
                 # After completing each exploration, close all audio and proceed to the next exploration
                 if self.terminated and index < len(scenario_list) - 1:
                     self._explore((scenario[0], audio_off_prompt), audio=False, max_steps=goal.get('max_steps'))
-
 
         end = time.time()
         logger.debug("events_count: " + str(len(self.events)))
@@ -104,11 +121,11 @@ class LLM(Explorer):
 
             # Get interface element information (only needed first time, as verify gets post-operation interface info)
             if not nodes_description_before:
-                nodes_description_before, nodes_before = self._nodes_detect(window_before)
+                nodes_description_before, nodes_before = self._detect_nodes_description(window_before)
 
             # Get next operation event, event_explanation converts event to a form easily understood by LLM
             events, event_explanation = self._get_next_event(scenario, nodes_description_before, nodes_before,
-                                                            window_before, all_completed_events, feedback)
+                                                             window_before, all_completed_events, feedback)
 
             # Execute operation
             logger.debug("-----------------------Executing LLM-decided operation-----------------------")
@@ -121,7 +138,7 @@ class LLM(Explorer):
             time.sleep(2)
             with self.lock:
                 window_after = self.device.dump_window(refresh=True)
-            nodes_description_after, nodes_after = self._nodes_detect(window_after)
+            nodes_description_after, nodes_after = self._detect_nodes_description(window_after)
 
             # Verify operation result
             verify_result = self._verify_event(scenario, event_explanation, window_before, nodes_description_before,
@@ -152,7 +169,6 @@ class LLM(Explorer):
 
         self.events.extend(events_without_error)
 
-
     def _should_terminate_thread(self, goal):
         while not self.close:
             with self.lock:
@@ -170,37 +186,18 @@ class LLM(Explorer):
                         self.terminated = False
             time.sleep(1)
 
-
     def _understand_first_window_audio(self, first_window):
         """
         Understand the audio type of the first window
         """
-        retry = 0
-        while retry < self.max_retry:
-            try:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": "You are a UI Testing Assistant."},
-                        {"role": "user", "content": [
-                            {"type": "text", "text": first_window_audio_prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(first_window.img)}"}}
-                        ]},
-                    ],
-                    stream=False,
-                )
-                return response.choices[0].message.content
-            except Exception as e:
-                if "503" in str(e) and retry < self.max_retry:
-                    time.sleep(2)
-                    retry += 1
-                else:
-                    raise e
-    
+        content = [
+            {"type": "text", "text": first_window_audio_prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(first_window.img)}"}}
+        ]
+        return self._ask(content)
 
     def test(self, **goal):
         print(self._understand_first_window_audio(self.device.dump_window(refresh=True)))
-
 
     def _understand(self, key, value, first_window=None):
         """
@@ -210,66 +207,17 @@ class LLM(Explorer):
         scenario_list = []
         if key == ExploreGoal.TESTCASE:
             understanding_prompt = test_understanding_prompt.format(value)
-            retry = 0
-            while retry < self.max_retry:
-                try:
-                    response = self.client.chat.completions.create(
-                        model=self.model,
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": "You are a UI Testing Assistant.",
-                            },
-                            {
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": understanding_prompt},
-                                ],
-                            },
-                        ],
-                        stream=False,
-                    )
-                    scenario_list.append(response.choices[0].message.content)
-                    break
-                except Exception as e:
-                    if "503" in str(e) and retry < self.max_retry:
-                        time.sleep(2)
-                        retry += 1
-                    else:
-                        raise e
+            content = [{"type": "text", "text": understanding_prompt}]
+            scenario_list.append(self._ask(content))
             logger.debug(scenario_list)
             return scenario_list
         elif key == ExploreGoal.HARDWARE:
-            retry = 0
-            audio_kind_str = ''
-            while retry < self.max_retry:
-                try:
-                    response = self.client.chat.completions.create(
-                        model=self.model,
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": "You are a UI Testing Assistant.",
-                            },
-                            {
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": first_window_understanding_prompt},
-                                    {"type": "image_url",
-                                     "image_url": {"url": f"data:image/jpeg;base64,{encode_image(first_window.img)}"}}
-                                ],
-                            },
-                        ],
-                        stream=False,
-                    )
-                    audio_kind_str = response.choices[0].message.content
-                    break
-                except Exception as e:
-                    if "503" in str(e) and retry < self.max_retry:
-                        time.sleep(2)
-                        retry += 1
-                    else:
-                        raise e
+            content = [
+                {"type": "text", "text": first_window_understanding_prompt},
+                {"type": "image_url",
+                 "image_url": {"url": f"data:image/jpeg;base64,{encode_image(first_window.img)}"}}
+            ]
+            audio_kind_str = self._ask(content)
             # parse audio_kind_str to list
             audio_kind_list = eval(audio_kind_str)
             if value == ResourceType.AUDIO:
@@ -293,57 +241,46 @@ class LLM(Explorer):
             logger.debug(audio_kind_str)
             return scenario_list
 
-
-    def _nodes_detect(self, window):
+    def _detect_nodes_description(self, window):
         """
-        Detect controls that match the description
+        Detect widgets that match the description
         """
-        logger.debug("-----------------------Control detection-----------------------")
+        logger.debug("-----------------------Widgets detection-----------------------")
         nodes = window(clickable='true', enabled='true')
         screenshot = window.img
-
-        images = []
-        for node in nodes:
-            images.append(_crop(screenshot, node.attribute['bounds']))
-            # logger.debug(node)
-
+        node_images = []
+        nodes_description = []
+        for index, node in enumerate(nodes):
+            node_text = self._extract_nodes_text(node)
+            node_description = {
+                'id': index,
+                'type': node.attribute['type'],
+                'content': '',
+            }
+            if 'LinearLayout' in node_description['type']:
+                continue
+            if node_text:
+                node_description['content'] = ', '.join(node_text) if node_text else ''
+            else:
+                node_description['content'] = 'Image'
+                node_images.append(_crop(screenshot, node.attribute['bounds']))
+            nodes_description.append(node_description)
+        if node_images:
+            images_description = self._get_image_description(screenshot, node_images)
+            index = 0
+            for node_description in nodes_description:
+                if node_description['content'] == 'Image':
+                    node_description['content'] = images_description[index]
+                    index += 1
         # Display clickable controls
         # for image in images:
         #     cv2.imshow('image', image)
         #     cv2.waitKey(0)
         #     cv2.destroyAllWindows()
-
-        nodes_description = self._add_information(nodes, screenshot, images)
         logger.debug(nodes_description)
         return nodes_description, nodes
 
-    def _add_information(self, nodes, screenshot, images):
-        """
-        Extract information from each control
-        """
-        nodes_description = []
-        image_list = []
-        for index, node in enumerate(nodes):
-            node_info = {'element_id': index, 'type': node.attribute['type']}
-            texts = self._extract_nested_text(node)
-            node_info['description'] = ', '.join(texts) if texts else None
-            if node_info['description'] is None:
-                node_info['description'] = 'image'
-                image_list.append(images[index])
-            nodes_description.append(node_info)
-        if image_list:
-            image_description = self._ask_llm_image(screenshot, image_list)
-            # logger.debug(len(image_list))
-            # logger.debug(image_description)
-            index = 0
-
-            for node_info in nodes_description:
-                if node_info['description'] == 'image':
-                    node_info['description'] = image_description[index]
-                    index += 1
-        return nodes_description
-
-    def _extract_nested_text(self, node):
+    def _extract_nodes_text(self, node):
         """
         Recursively extract all text from node and its children
         """
@@ -355,10 +292,10 @@ class LLM(Explorer):
 
         # Recursively process all child nodes
         for child in node._children:
-            texts.extend(self._extract_nested_text(child))
+            texts.extend(self._extract_nodes_text(child))
         return texts
 
-    def _ask_llm_image(self, screenshot, nodes):
+    def _get_image_description(self, screenshot, nodes):
         """
         Send screenshot and multiple control screenshots to LLM, get description list for each control
         """
@@ -377,34 +314,7 @@ class LLM(Explorer):
             content.append({"type": "text", "text": f"Component {i + 1} of {nodes_count}:"})
             content.append(
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(component)}"}})
-
-        retry = 0
-        response_text = ''
-        while retry < self.max_retry:
-            try:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a UI Testing Assistant.",
-                        },
-                        {
-                            "role": "user",
-                            "content": content,
-                        },
-                    ],
-                    stream=False,
-                )
-                response_text = response.choices[0].message.content
-                break
-            except Exception as e:
-                if "503" in str(e) and retry < self.max_retry:
-                    time.sleep(2)
-                    retry += 1
-                else:
-                    raise e
-
+        response_text = self._ask(content)
         try:
             match = re.search(r'\[(.*)]', response_text, re.DOTALL)
             if match:
@@ -435,31 +345,11 @@ class LLM(Explorer):
         prompt = next_event_prompt.format(scenario, nodes_description, all_completed_events, feedback)
 
         # Prepare message content
-        messages = [
-            {"role": "system", "content": "You are a UI testing assistant that helps users decide what to do next."},
-            {"role": "user", "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {
-                    "url": f"data:image/jpeg;base64,{encode_image(window.img)}"}}]}, ]
-
-        retry = 0
-        event_str = ''
-        while retry < self.max_retry:
-            try:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    stream=False,
-                )
-                event_str = response.choices[0].message.content
-                break
-            except Exception as e:
-                if "503" in str(e) and retry < self.max_retry:
-                    time.sleep(2)
-                    retry += 1
-                else:
-                    raise e
-
+        content = [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {
+                "url": f"data:image/jpeg;base64,{encode_image(window.img)}"}}]
+        event_str = self._ask(content)
         try:
             event_json = json.loads(event_str)
         except json.JSONDecodeError as e:
@@ -473,21 +363,21 @@ class LLM(Explorer):
         event_type = event_json.get("event_type")
         if event_type == "click":
             element_id = event_json.get("element_id")
-            if element_id is not None and 0 <= element_id <= len(nodes_description)-1:
+            if element_id is not None and 0 <= element_id <= len(nodes_description) - 1:
                 node = nodes[element_id]
                 events_list.append(ClickEvent(node))
                 # Build operation description, easy for LLM to understand
-                event_explanation = f"Click widget{element_id}: {nodes_description[element_id]['description']} at ({node.attribute['center']})"
+                event_explanation = f"Click widget{element_id}: {nodes_description[element_id]['content']} at ({node.attribute['center']})"
 
         elif event_type == "input":
             element_id = event_json.get("element_id")
             text = event_json.get("text", "")
-            if element_id is not None and 0 <= element_id <= len(nodes_description)-1:
+            if element_id is not None and 0 <= element_id <= len(nodes_description) - 1:
                 node = nodes[element_id]
                 if node.attribute['focused'] == 'false':
                     events_list.append(ClickEvent(node))
                 events_list.append(InputEvent(node, text))
-                event_explanation = f"Input text '{text}' into widget{element_id}: {nodes_description[element_id]['description']}"
+                event_explanation = f"Input text '{text}' into widget{element_id}: {nodes_description[element_id]['content']}"
 
         elif event_type == "swipe":
             direction = event_json.get("direction")
@@ -522,41 +412,11 @@ class LLM(Explorer):
         prompt = verify_prompt.format(scenario, event_explanation, nodes_description_before,
                                       nodes_description_after)
 
-        # Prepare message content
-        messages = [
-            {"role": "system",
-             "content": "You are a UI test verification assistant that helps users verify the results of their actions."}
-        ]
+        content = [{"type": "text", "text": prompt},
+                   {"type": "image_url", "image_url": {"url": before_image_content}},
+                   {"type": "image_url", "image_url": {"url": after_image_content}}]
 
-        # Add user message
-        user_message = {"role": "user", "content": [{"type": "text", "text": prompt}]}
-
-        # If there are images, add to message
-        user_message["content"].extend([
-            {"type": "image_url", "image_url": {"url": before_image_content}},
-            {"type": "image_url", "image_url": {"url": after_image_content}}
-        ])
-
-        messages.append(user_message)
-
-        retry = 0
-        verify_result_str = ''
-        while retry < self.max_retry:
-            try:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    stream=False,
-                )
-                verify_result_str = response.choices[0].message.content
-                break
-            except Exception as e:
-                if "503" in str(e) and retry < self.max_retry:
-                    time.sleep(2)
-                    retry += 1
-                else:
-                    raise e
-
+        verify_result_str = self._ask(content)
         logger.debug(f"Verification result: {verify_result_str}")
 
         # Parse JSON
