@@ -94,24 +94,30 @@ class AudioGenerator(Generator):
                 # todo
                 elif isinstance(e, KeyEvent):
                     pass
-                
+
+            test_case_content += f'\n        tc_res_dict = {{}}\n'
+
             test_case_content += f'\n        # hop src_app to tgt_device\n'
             test_case_content += f'        self.src_device.hop({tgt_device_name}, {src_app_name})\n'
-            # todo cur_window inf
             test_case_content += f'        cur_window = self.tgt_device.dump_window(refresh=True)\n'
+            test_case_content += f'        cur_rsc = cur_window.rsc\n'
+            test_case_content += f'        tc_res_dict[\'sa_to_td\'] = cur_rsc\n'
 
             test_case_content += f'\n        # hop src_app back to src_device\n'
             test_case_content += f'        self.tgt_device.hop({src_device_name}, {src_app_name})\n'
-            # todo cur_window inf
             test_case_content += f'        cur_window = self.src_device.dump_window(refresh=True)\n'
+            test_case_content += f'        cur_rsc = cur_window.rsc\n'
+            test_case_content += f'        tc_res_dict[\'sa_to_sd\'] = cur_rsc\n'
 
             test_case_content += f'\n        # hop tgt_app to src_device\n'
             test_case_content += f'        self.tgt_device.hop({src_device_name}, {tgt_app_name})\n'
-            # todo cur_window inf
             test_case_content += f'        cur_window = self.src_device.dump_window(refresh=True)\n'
+            test_case_content += f'        cur_rsc = cur_window.rsc\n'
+            test_case_content += f'        tc_res_dict[\'ta_to_sd\'] = cur_rsc\n'
 
             test_case_content += f'\n        self.src_device.stop_app({src_app})\n'
             test_case_content += f'        self.tgt_device.stop_app({tgt_app})\n'
+            test_case_content += f'        print(tc_res_dict)\n'
 
         test_case_file = f"test_{self.app.replace('.', '_')}.py"
         try:

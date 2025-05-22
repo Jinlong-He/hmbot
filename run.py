@@ -2,6 +2,7 @@ import argparse
 from hmbot.proto import OperatingSystem
 from config import init_config
 from hmbot.hmbot import HMBot
+from hmbot.wtg import WTGParser
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -10,8 +11,7 @@ if __name__ == '__main__':
     parser_explore = subparsers.add_parser('explore', help='explore the app')
     parser_detect = subparsers.add_parser('detect', help='detect bugs')
 
-    parser_devices.add_argument('--os', type=str, help='specify the operating system of deivce')
-
+    parser_devices.add_argument('--os', type=str, help='specify the operating system of device')
 
     exploration_group = parser_explore.add_mutually_exclusive_group(required=True)
     exploration_group.add_argument('--testcase', nargs='+', help='Specify test script file path(s) for exploration')
@@ -23,14 +23,14 @@ if __name__ == '__main__':
     parser_explore.add_argument('-m', '--max_steps', type=int, default=20, help='specify the depth of exploration, default is 20')
     parser_explore.add_argument('-o', '--output', type=str, default='output/', help='specify the output directory for exploration results')
 
-    # parser_detect.add_argument('--source_device', type=str, help='specify the source device serial for detection')
-    # parser_detect.add_argument('--target_device', type=str, help='specify the target device serial for detection')
-    # parser_detect.add_argument('--source_app', type=str, help='specify the source app path for detection')
-    # parser_detect.add_argument('--target_app', type=str, help='specify the target app path for detection')
-    # parser_detect.add_argument('--source_hstg', type=str, help='specify the source hstg path for detection')
-    # parser_detect.add_argument('--target_hstg', type=str, help='specify the target hstg path for detection')
-    # parser_detect.add_argument('-o', '--output', type=str, default='output.xml', help='specify the output file path of detection')
-    
+    parser_detect.add_argument('--os', type=str, required=True, help='specify the operating system of deivce')
+    parser_detect.add_argument('--hardware', required=True, choices=['audio', 'microphone', 'camera', 'keyboard'],
+                                   help='Specify hardware resources (audio, microphone, camera, keyboard) for exploration')
+    parser_detect.add_argument('-wp', '--wtg_path', type=str, required=True, help='specify the test wtg for enhancement and detection')
+    parser_detect.add_argument('-op', '--other_wtg_path', type=str, nargs='+', required=True, help='specify other wtg for enhancement')
+    parser_detect.add_argument('-sd', '--source_device', type=str, required=True, help='specify the source device serial for detection')
+    parser_detect.add_argument('-td','--target_device', type=str, required=True, help='specify the target device serial for detection')
+
     args = parser.parse_args()
     if args.command == 'devices':
         if args.os:
@@ -45,6 +45,16 @@ if __name__ == '__main__':
         llm_config = init_config()
         hmbot = HMBot(args.os, args.serial, llm_config)
         hmbot.explore(args)
+    if args.command == 'detect':
+        serial = [args.source_device, args.target_device]
+        hmbot = HMBot(args.os, serial, None)
+        wtg = WTGParser().parse(args.wtg_path)
+        other_wtg = []
+        for path in args.other_wtg_path:
+            wtg = WTGParser().parse(path)
+            other_wtg.append(wtg)
+        hmbot.enhancement(wtg, other_wtg, args.resource_type)
+        hmbot.detect_hac(args.resource_type, wtg)
 
 
 

@@ -116,6 +116,20 @@ You must specify one of the following exploration types: **[Required]**
 - `--testcase`: Specify test script file paths for exploration, multiple paths can be specified, e.g., `--testcase test1.py test2.py`
 - `--hardware`: Specify hardware resources to test, multiple resources can be specified, e.g., `--hardware audio camera`
 
+
+### Issue Detection
+```bash
+python run.py detect --os <operating_system> --hardware <hardware_type> -wp <wtg_path> -owp <other_wtg_path> -sd <source_device> -td <target_device>
+```
+Parameter description:
+- `--os`: **[Required]** Specify the operating system type (android or harmony)
+- `--hardware`: **[Required]** Specify hardware resources to test (audio, microphone, camera, keyboard)
+- `-wp, --wtg_path`: **[Required]** Specify the test wtg path for enhancement and detection
+- `-op, --other_wtg_path`: **[Required]** Specify other wtg path for enhancement, multiple paths can be specified
+- `-sd, --source_device`: **[Required]** Specify the source device serial for detection
+- `-td, --target_device`: **[Required]** Specify the target device serial for detection
+
+
 ### Examples
 1. Test the speaker functionality of a HarmonyOS application:
 ```bash
