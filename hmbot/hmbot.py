@@ -141,10 +141,14 @@ class HMBot(object):
                 device.stop_app(bundle_other)
 
     def event_to_status(self, resource_type, status, wtg=None):
-        # to modify
         if not wtg:
             wtg = self
         all_paths = []
+        has_incoming = set()
+        for window in wtg.windows:
+            for neighbor in wtg._adj_list.get(window, {}):
+                has_incoming.add(neighbor)
+        start_windows = [window for window in wtg.windows if window not in has_incoming]
 
         def dfs(cur_window, path, events_path):
             if cur_window.rsc[resource_type] == status:
@@ -160,6 +164,6 @@ class HMBot(object):
                 new_events_path = events_path + [events]
                 dfs(neighbor, new_path, new_events_path)
 
-        for window in wtg.windows:
+        for window in start_windows:
             dfs(window, [window], [])
         return all_paths
