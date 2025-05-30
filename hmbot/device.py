@@ -2,12 +2,10 @@ import sys
 import time
 from typing import Union
 from loguru import logger
-from .app.app import App
 from .exception import*
 from .proto import SwipeDirection
 from .rfl.system_rfl import system_rfl
-from .vht import VHTNode
-from .window import Window
+from .page import Page
 
 class Device(object):
     """
@@ -30,11 +28,11 @@ class Device(object):
         except OSKeyError:
             logger.error("%s is not supported" % operating_system)
             sys.exit(-1)
-        self.window = None
+        self.page = None
 
     def __call__(self, **kwds):
-        self.dump_window(refresh=True)
-        return self.window(**kwds)
+        self.dump_page(refresh=True)
+        return self.page(**kwds)
 
     def install_app(self, app):
         self.automator.install_app(app)
@@ -94,28 +92,19 @@ class Device(object):
     def recent(self):
         self.automator.recent()
     
-    def dump_window(self, device=None, refresh=False):
+    def page_info(self):
+        return self.connector.page_info()
+    
+    def dump_page(self, device=None, refresh=False):
         if device is None:
             device = self
-        if self.window == None or refresh:
+        if self.page == None or refresh:
             vht = self.dump_hierarchy(device=device)
             img = self.screenshot()
             rsc = self.get_resource_status()
-            ability = self.current_ability().get('ability')
-            bundle = self.current_ability().get('bundle')
-            self.window = Window(vht=vht, img=img, rsc=rsc, ability=ability, bundle=bundle)
-        return self.window
-
-    def dump_page(self, split=False, app=None):
-        if not split:
-            window = self.dump_window()
-            if window._pages:
-                return window._pages[0]
-        if split and isinstance(app, App):
-            return self.dump_window().current_page(app)
-
-    def current_ability(self):
-        return self.connector.current_ability()
+            info = self.page_info()
+            self.page = Page(vht=vht, img=img, rsc=rsc, info=info)
+        return self.page
 
     def hop(self, dst_device_name=None, app_name=None):
         return self.automator.hop(dst_device_name, app_name)

@@ -1,6 +1,6 @@
 from .connector import Connector
 from ..exception import DeviceError, HDCError
-from ..proto import ResourceType
+from ..proto import PageInfo, Resource, AudioInfo, AudioType, CameraInfo, CameraType
 from loguru import logger
 import subprocess, re
 
@@ -82,7 +82,7 @@ class HDC(Connector):
             out = out.decode()
         return out
 
-    def current_ability(self):
+    def page_info(self):
         missions = self._hidumper(ability='AbilityManagerService', extra_args='-l')
         missions = missions.split('}')
         infos_re = re.compile('.*app name \[(.*)\].*main name \[(.*)\].*bundle name \[(.*)\].*ability type.*',
@@ -91,9 +91,9 @@ class HDC(Connector):
             if 'state #FOREGROUND  start time' in mission and 'app state #FOREGROUND' in mission:
                 match = infos_re.match(mission)
                 if match:
-                    return {'app': match.groups()[0],
-                            'ability': match.groups()[1],
-                            'bundle': match.groups()[2]}
+                    return PageInfo(bundle=match.groups()[2], 
+                                    ability=match.groups()[1],
+                                    name='')
 
     def devices(cls):
         args = ['hdc', 'list', 'targets']
@@ -106,29 +106,25 @@ class HDC(Connector):
 
     def get_uid(self, bundle=None):
         if not bundle:
-            bundle = self.current_ability().get('bundle')
+            bundle = self.page_info.bundle
         ps_info = self.shell_grep("ps -ef", bundle).split()
         if len(ps_info) > 2:
             return ps_info[0]
 
     def get_pid(self, bundle=None):
         if not bundle:
-            bundle = self.current_ability().get('bundle')
+            bundle = self.page_info().bundle
         ps_info = self.shell_grep("ps -ef", bundle).split()
         if len(ps_info) > 2:
             return ps_info[1]
 
-    def get_resource_status(self, bundle=None):
+    def get_resources(self, bundle=None):
         if not bundle:
-            bundle = self.current_ability().get('bundle')
-        return {
-            ResourceType.AUDIO: self.get_audio_status(bundle),
-            ResourceType.CAMERA: self.get_camera_status(),
-            ResourceType.MICRO: self.get_micro_status(bundle),
-            ResourceType.KEYBOARD: self.get_keyboard_status()
-        }
+            bundle = self.page_info().bundle
+        return Resource(audio= self.get_audio(),
+                        camera= self.get_camera())
 
-    def get_audio_status(self, bundle=None):
+    def get_audio(self, bundle=None):
         uid = self.get_uid(bundle)
         pid = self.get_pid(bundle)
 
@@ -169,11 +165,6 @@ class HDC(Connector):
             return 'STOP'
         return
 
-    def get_camera_status(self):
+    def get_camera(self):
         pass
 
-    def get_micro_status(self, bundle):
-        pass
-
-    def get_keyboard_status(self):
-        pass

@@ -16,9 +16,6 @@ class VHT(object):
     
     def __call__(self, **kwds):
         return self._root(**kwds)
-
-    def roots(self):
-        return self.__call__(type='root')
     
     def _compress(self, node):
         if self._assert_compress(node):
@@ -34,7 +31,6 @@ class VHT(object):
             s_attri = node.attribute
             c_attri = node._children[0].attribute
             if s_attri['bounds'] == c_attri['bounds']:
-            # and (s_attri['text']=='' or c_attri['text']==''):
                 return True
         return False
     
@@ -233,13 +229,10 @@ class VHTParser(object):
             match = re.match(bound_re, extra['bounds'])
             if match:
                 (x1, y1, x2, y2) = map(int, match.groups())
-                # 处理极端值情况
                 if x1 == 2147483647 and y1 == 2147483647 and x2 == -2147483648 and y2 == -2147483648:
-                    # 使用默认值或屏幕中心点
                     x1, y1, x2, y2 = 0, 0, 100, 100
             else: 
-                # 如果仍然无法匹配，使用默认值
-                print(f"警告: 无法解析边界值 '{extra['bounds']}'，使用默认值")
+                # print(f"警告: 无法解析边界值 '{extra['bounds']}'，使用默认值")
                 x1, y1, x2, y2 = 0, 0, 100, 100
             attrib['bundle'] = extra['package']
             root = VHTNode(device=device,

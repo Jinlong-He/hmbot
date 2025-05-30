@@ -1,9 +1,9 @@
 from .vht import VHTNode
-from .window import Window
+from .page import Page
 from .event import *
 import json
 
-class WTG(object):
+class PTG(object):
     def __init__(self):
         self.main_windows = []
         self.windows = []

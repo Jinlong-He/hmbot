@@ -46,30 +46,41 @@ class DisplayInfo:
     height: int
     rotation: DisplayRotation
 
-class ResourceType:
-    AUDIO = 'audio'
-    CAMERA = 'camera'
-    MICRO = 'micro'
-    KEYBOARD = 'keyboard'
-
-class AudioStatus:
-    START = 'START'
-    START_ = 'START*'
-    PAUSE = 'PAUSE'
-    PAUSE_ = 'PAUSE*'
-    DUCK = 'DUCK'
-    STOP = 'STOP'
-
-class MicroStatus:
-    START = 'start'
-    STOP = 'stop'
-
 class ExploreGoal(str, Enum):
     TESTCASE = 'testcase'
     HARDWARE = 'hardware'
 
 class AudioType(str, Enum):
     MUSIC = 'music'
-    VIDEO = 'video'
-    NAVIGATION = 'navigation'
-    COMMUNICATION = 'communication'
+    MOVIE = 'movie'
+    NAVIG = 'navigation'
+    COMMU = 'communication'
+
+class CameraType(str, Enum):
+    FRONT = 'front'
+    REAR = 'rear'
+
+class Status(str, Enum):
+    RUNNING = 'RUNNING'
+    STOPPED = 'STOPPED'
+
+@dataclass
+class AudioInfo: 
+    type: AudioType
+    stat: Status
+
+@dataclass
+class CameraInfo: 
+    type: CameraType
+    stat: Status
+
+@dataclass
+class Resource:
+    audio: AudioInfo
+    camera: CameraInfo
+
+@dataclass
+class PageInfo:
+    bundle: str
+    ability: str
+    name: str

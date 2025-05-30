@@ -1,6 +1,6 @@
 from .connector import Connector
 from ..exception import DeviceError, ADBError
-from ..proto import ResourceType, AudioStatus, MicroStatus
+from ..proto import ResourceType, AudioStatus, MicroStatus, PageInfo
 from loguru import logger
 import subprocess
 import re
@@ -66,19 +66,16 @@ class ADB(Connector):
             out = out.decode()
         return out
 
-    def current_ability(self):
+    def page_info(self):
         focus_lines = self.shell_grep("dumpsys window", "mCurrentFocus").splitlines()
         infos_re = re.compile(".*u0 (.*)/(.*)}")
         if len(focus_lines) > 0:
             for focus_line in focus_lines:
-                m = infos_re.match(focus_line)
-                if m:
-                    return {
-                        'app': m.groups()[0],
-                        'ability': m.groups()[1],
-                        'bundle': m.groups()[0],
-                    }
-        return {}
+                match = infos_re.match(focus_line)
+                if match:
+                    return PageInfo(bundle=match.groups()[0],
+                                    ability=match.groups()[1],
+                                    name=match.groups()[1])
 
     def get_uid(self, bundle=None):
         if not bundle:
@@ -91,7 +88,7 @@ class ADB(Connector):
         else:
             return
 
-    def get_resource_status(self, bundle=None):
+    def get_resources(self, bundle=None):
         if not bundle:
             bundle = self.current_ability().get('bundle')
         return {
@@ -101,7 +98,7 @@ class ADB(Connector):
             ResourceType.KEYBOARD: self.get_keyboard_status()
         }
 
-    def get_audio_status(self, bundle=None):
+    def get_audio(self, bundle=None):
         if not bundle:
             bundle = self.current_ability().get('bundle')
 
@@ -173,28 +170,6 @@ class ADB(Connector):
                 audio_status = AudioStatus.STOP
         return audio_status
 
-    def get_camera_status(self):
+    def get_camera(self):
         return 'default'
-        pass
 
-    def get_micro_status(self, bundle=None):
-        if not bundle:
-            bundle = self.current_ability().get('bundle')
-
-        mic_infos = self.shell_grep("dumpsys audio", "src:").splitlines()
-        status = ''
-        silenced = ''
-        for mic_info in mic_infos:
-            mic_re = re.compile(f".*rec (.*) riid.*src:(.*) pack:{bundle}.*")
-            match = mic_re.match(mic_info)
-            if match:
-                status = match.group(1)
-                silenced = match.group(2)
-        if status in ['stop', 'release'] or 'not' not in silenced:
-            return MicroStatus.STOP
-        return MicroStatus.START
-
-
-    def get_keyboard_status(self):
-        return 'default'
-        pass

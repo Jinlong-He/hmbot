@@ -49,7 +49,7 @@ class Connector(ABC):
         pass
 
     @abstractmethod
-    def current_ability(self):
+    def page_info(self):
         """
         Run a shell-command and return the current ability (including its bundle name and app name).
 
@@ -59,7 +59,7 @@ class Connector(ABC):
         pass
 
     @abstractmethod
-    def get_resource_status(self, bundle):
+    def get_resources(self, bundle):
         """
         Run a shell-command and return the resource status of the current app (including audio, camera).
 
@@ -74,7 +74,7 @@ class Connector(ABC):
         pass
 
     @abstractmethod
-    def get_audio_status(self, bundle):
+    def get_audio(self, bundle):
         """
         Run a shell-command and return the audio status of the current app.
 
@@ -84,7 +84,7 @@ class Connector(ABC):
         pass
 
     @abstractmethod
-    def get_camera_status(self):
+    def get_camera(self):
         """
         Run a shell-command and return the camera status of the current app.
 
@@ -93,21 +93,4 @@ class Connector(ABC):
         """
         pass
 
-    @abstractmethod
-    def get_micro_status(self, bundle):
-        """
-        Run a shell-command and return the micro status of the current app.
-
-        Returns:
-            str: output of the micro status of the current app.
-        """
-
-    @abstractmethod
-    def get_keyboard_status(self):
-        """
-        Run a shell-command and return the keyboard status of the current app.
-
-        Returns:
-            str: output of the keyboard status of the current app.
-        """
 
