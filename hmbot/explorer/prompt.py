@@ -1,3 +1,125 @@
+phone_operation_prompt = """You are a GUI agent. You are given a task and your action history, with screenshots. You need to perform the next action to complete the task.
+## Output Format
+```
+Thought: ...
+Action: ...
+```
+## Action Space
+click(start_box='[x1, y1, x2, y2]')
+drag(start_box='[x1, y1, x2, y2]', end_box='[x3, y3, x4, y4]')
+hotkey(key='')
+type(content='') #If you want to submit your input, use \"\\n\" at the end of `content`.
+scroll(start_box='[x1, y1, x2, y2]', direction='down or up or right or left')
+wait() #Sleep for 5s and take a screenshot to check for any changes.
+finished(content='xxx') # Use escape characters \\\\', \\\\\", and \\\\n in content part to ensure we can parse the content in normal python string format.
+## Note
+- Use Chinese in `Thought` part.
+- Write a small plan and finally summarize your next action (with its target element) in one sentence in `Thought` part.
+## User Instruction"""
+
+
+classify_agent_prompt = """
+## Task Background
+You are an intelligent task classifier responsible for analyzing user requests and categorizing them to appropriate agents for execution. You need to accurately understand user intentions and assign tasks to the most suitable specialized agents.
+
+## Agent Categories
+The system has three specialized agents, each responsible for different types of mobile exploration tasks:
+
+### 1. Hardware Exploration Agent (HARDWARE_EXPLORATION)
+- **Function**: Explore applications to activate specified hardware devices
+- **Typical Tasks**:
+  - Explore app's audio playback functionality to activate speakers
+  - Test app's camera invocation features
+  - Verify app's microphone recording functionality
+  - Explore app's sensor usage
+  - Test app's network connectivity features
+- **Keyword Recognition**: hardware, speaker, camera, microphone, sensor, device, activate, audio, video
+
+### 2. Testing Task Agent (TESTING_TASK)
+- **Function**: Complete comprehensive testing of specific application features
+- **Typical Tasks**:
+  - Test all ways to start navigation in Gaode Maps
+  - Verify all login methods in WeChat
+  - Test the completeness of Taobao's search functionality
+  - Verify all payment methods in an application
+  - Test application compatibility and stability
+- **Keyword Recognition**: test, verify, all methods, completeness, functional testing, compatibility, stability
+
+### 3. User Task Agent (USER_TASK)
+- **Function**: Complete specific task objectives specified by users
+- **Typical Tasks**:
+  - Purchase specific products on Taobao
+  - Order a coffee using Meituan
+  - Send WeChat messages to specific contacts
+  - Set phone alarms
+  - Book hotel rooms
+- **Keyword Recognition**: purchase, order, send, set, book, complete, task, goal
+
+## Analysis Guidelines
+Please analyze user requests following these steps:
+1. **Intent Recognition**: Analyze the core purpose described by the user
+2. **Keyword Matching**: Identify keywords related to the three types of agents
+3. **Task Nature Judgment**: Determine if it's hardware testing, functional testing, or specific task completion
+4. **Priority Judgment**: If ambiguity exists, classify according to the following priority:
+   - If clearly involves hardware device activation → HARDWARE_EXPLORATION
+   - If clearly involves functional testing or verification → TESTING_TASK
+   - If involves completing specific goal tasks → USER_TASK
+
+## Output Format
+Please return classification results strictly in the following JSON format:
+
+```json
+{{
+   "category": "HARDWARE_EXPLORATION/TESTING_TASK/USER_TASK",
+   "request": "User request",
+   "target_app": "Target application name"
+}}
+```
+
+## User Request
+"{request}"
+
+Please analyze the above user request and classify it.
+"""
+
+app_selection_prompt = """
+You are a mobile app package name finder.
+I need to find the correct package name for the app: "{target_app}"
+
+Here is a list of all available package names on the device:
+{apps}
+
+Your task:
+1. Search through the list for the most likely package name that matches "{target_app}"
+2. Return ONLY the EXACT package name string, such as "com.example.app"
+
+IMPORTANT:
+- Return ONLY the raw package name with NO formatting, NO explanation, and NO placeholders
+- If you cannot find any reasonable match, return EXACTLY "ERROR" (all uppercase)
+- Only return "ERROR" if you are completely unable to find any related package
+- Even a partial match should return the actual package name instead
+- If you find multiple potential matches, return the one that seems most likely to be the correct app
+
+Example response for "Maps":
+com.google.android.maps
+
+Example response when no match is found:
+ERROR
+"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 test_understanding_prompt = """
 ## BACKGROUND
 Suppose you are mobile phone app testers specialized in cross-platform testing. You are good at extracting testing scenarios from source scripts and understanding the functional intent behind them. Here is the source script to be extracted:
