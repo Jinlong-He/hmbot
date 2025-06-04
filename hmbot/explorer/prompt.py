@@ -107,17 +107,134 @@ Example response when no match is found:
 ERROR
 """
 
+# Hardware type identification prompt
+hardware_understand_prompt = """Analyze the user's request and identify hardware components that need testing. Available types:
+AUDIO - Testing audio features (playback, recording, calls)
+CAMERA - Testing camera functionality (photos, video recording)
+MICRO - Testing microphone input (voice recording, voice commands)
+KEYBOARD - Testing input methods (text entry, voice typing)
+
+Analysis steps:
+1. Understand the core requirements of the request
+2. Identify explicitly mentioned or implied hardware components
+3. Return a JSON list of relevant hardware types
+
+Examples:
+Request: "Test video call quality in WeChat"
+Response: ["AUDIO", "CAMERA", "MICRO"]
+
+Request: "Check keyboard input and voice-to-text functionality"
+Response: ["KEYBOARD", "MICRO"]
+
+Return only a JSON-formatted list. Current request to analyze: {request}"""
+
+optimize_user_request = """
+You are an expert in optimizing large model prompts.
+
+## Task
+The user plans to leverage a large model to deeply explore and practice various phone operations and functions. 
+The user has now provided a prompt and wants the large model to provide specific plans and steps for exploration based on their prompt. 
+Please optimize the prompt provided by the user, you only need to return the optimized prompt in English, without any additional explanation.
+
+## User Prompt
+{user_request}
+"""
 
 
+user_task_prompt = """
+## Task
+Based on the following user request, generate a detailed operation scenario: {request}
 
+## Output Requirements
+Please provide a structured scenario description that includes the following sections:
 
+1. **Objective**: Clearly describe the specific goal to be accomplished in this scenario
+2. **Operation Steps**: List in detail the specific operation steps required to complete this goal, including:
+   - The interface elements to be operated in each step
+   - The type of operation (click, input, swipe, etc.)
+   - If input is required, specify the exact content to be entered
+3. **Success Criteria**: Describe clear indicators for determining when the goal has been successfully completed
 
+## Format Example
+```json
+{{
+  "objective": "Complete X task in Y application",
+  "operation_steps": [
+    "Click the X button on the home screen",
+    "Enter X content in the search box",
+    "Select X option from the list",
+    "...more steps..."
+  ],
+  "success_criteria": "Task is considered complete when the page displays X content or X confirmation message appears"
+}}
+```
 
+Please ensure that the operation steps are clear, specific, and arranged in sequence so that anyone can accurately complete the task by following these steps.
+"""
 
+hardware_test_prompt = """
+## Task
+Based on the following user request, generate a detailed operation scenario: {request}
+"""
 
+app_test_prompt = """
+## Task
+Based on the following user request, generate comprehensive test scenarios: {request}
 
+## Output Requirements
+Please provide a structured set of test scenarios as a JSON array. Each scenario should represent a complete test path from start to finish.
 
+For each test scenario, include:
+1. **scenario_name**: A descriptive name for this specific test path
+2. **scenario**: An object containing:
+   - **objective**: The specific goal of this test scenario
+   - **steps**: Detailed, sequential steps required to complete this path
+   - **success_criteria**: Clear indicators that determine when this test path is successfully completed
 
+## Example Format
+[
+  {{
+    "scenario_name": "Basic Search Functionality",
+    "scenario": {{
+      "objective": "Test the basic search functionality of the application",
+      "steps": [
+        "Locate and tap the search icon/bar in the main interface",
+        "Input relevant search term (e.g., '书包' for shopping app, '北京' for travel app)",
+        "Tap the search button or press enter on keyboard",
+        "Verify search results appear",
+        "Select one of the search results by tapping on it",
+        "Verify detailed information page opens"
+      ],
+      "success_criteria": "Search results are displayed and item details can be accessed"
+    }}
+  }},
+  {{
+    "scenario_name": "Account Login via Phone Number",
+    "scenario": {{
+      "objective": "Test user login functionality using phone number",
+      "steps": [
+        "Tap on profile or account icon (typically in bottom navigation bar)",
+        "Select 'Login' or 'Sign in' option if not logged in",
+        "Choose 'Phone number' login method",
+        "Input valid phone number in the phone field",
+        "Request and wait for verification code",
+        "Input verification code",
+        "Submit login information",
+        "Verify return to main interface with logged-in status"
+      ],
+      "success_criteria": "User is successfully logged in with profile information visible"
+    }}
+  }}
+]
+
+## IMPORTANT RESPONSE GUIDELINES
+1. Your response MUST be a valid JSON array that can be directly parsed by json.loads()
+2. Do NOT include any text, markdown formatting, or code blocks outside the JSON array
+3. Do NOT include the ```json prefix or ``` suffix around your response
+4. Include ALL possible test paths for the requested functionality
+5. Make sure all JSON keys and values are properly enclosed in double quotes
+6. Your ENTIRE response must be ONLY the JSON array, nothing else
+"""
 
 
 test_understanding_prompt = """

@@ -1,6 +1,5 @@
 import subprocess
 import time
-
 from loguru import logger
 from hmbot.explorer.llm import GeneralLLM, SpecializedLLM
 import re
@@ -11,7 +10,45 @@ from hmbot.cv import encode_image
 
 class Agent(object):
     def __init__(self):
-        pass
+        self.llm = None
+
+    def _build_scenario(self, request, type):
+        """
+        Build scenario for LLM
+        """
+        logger.debug("-----------------------Building scenario-----------------------")
+        # Optimize user request
+        request = optimize_user_request.format(user_request=request)
+        messages = [
+            {
+                "role": "system",
+                "content": "You are an expert in optimizing large model prompts."
+            },
+            {
+                "role": "user",
+                "content": request
+            }
+        ]
+        optimized_request = self.llm.ask(messages)
+        # Understand user request
+        if type == "user_task":
+            request = user_task_prompt.format(request=optimized_request)
+        elif type == "hardware_test":
+            request = hardware_test_prompt.format(request=optimized_request)
+        elif type == "app_test":
+            request = app_test_prompt.format(request=optimized_request)
+        messages = [
+            {
+                "role": "system",
+                "content": "You are an expert in understanding user requests."
+            },
+            {
+                "role": "user",
+                "content": request
+            }
+        ]
+        scenario = self.llm.ask(messages)
+        return scenario
 
 
 class MobilePhoneAgent(Agent):
@@ -24,8 +61,11 @@ class MobilePhoneAgent(Agent):
         """
         Explore the mobile phone
         """
+        # get screenshot and resource status
         page = self.device.dump_page(refresh=True)
         screenshot = page.img
+        resource_status = page.rsc
+
         messages=[
             {
                 "role": "system",
@@ -43,6 +83,10 @@ class MobilePhoneAgent(Agent):
                         "image_url": {
                             "url": f"data:image/jpeg;base64,{encode_image(screenshot)}",
                         }
+                    },
+                    {
+                        "type": "text",
+                        "text": "Resource status: " + str(resource_status)
                     }
                 ]
             }
@@ -77,6 +121,7 @@ class MobilePhoneAgent(Agent):
 
             page = self.device.dump_page(refresh=True)
             screenshot = page.img
+            resource_status = page.rsc
             messages.append({
                 "role": "user",
                 "content": [
@@ -85,6 +130,10 @@ class MobilePhoneAgent(Agent):
                         "image_url": {
                             "url": f"data:image/jpeg;base64,{encode_image(screenshot)}",
                         }
+                    },
+                    {
+                        "type": "text",
+                        "text": "Resource status: " + str(resource_status)
                     }
                 ]
             })
@@ -219,48 +268,169 @@ class ClassifyAgent(Agent):
 
 
 class HardwareTestAgent(Agent):
-    def __init__(self):
+    def __init__(self, explore_agent):
         super().__init__()
         self.llm = GeneralLLM()
+        self.explore_agent = explore_agent
 
-    def test(self, scenario):
+    def test(self, request):
         """
         Test the hardware
         """
-        pass
+        logger.debug("-----------------------Hardware test-----------------------")
+        page = self.device.dump_page(refresh=True)
+        screenshot = page.img
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a mobile phone hardware tester."
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "User request: " + request},
+                    {"type": "text", "text": first_window_understanding_prompt},
+                    {"type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{encode_image(screenshot)}"}}
+                ]
+            }
+        ]
+        response = self.llm.ask(messages)
+        messages.append({
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": response
+                }
+            ]
+        })  
+        try:
+            audio_kind_list = json.loads(response)
+        except json.JSONDecodeError:
+            json_str = re.search(r'\[.*?\]', response).group()
+            audio_kind_list = json.loads(json_str)
+        logger.debug(f"Audio types identified: {audio_kind_list}")
+
+        messages.append({
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": hardware_understand_prompt.format(request=request)
+                }
+            ]
+        })  
+        response = self.llm.ask(messages)
+        
+        try:
+            hardware_list = json.loads(response)
+        except json.JSONDecodeError as e:
+            json_match = re.search(r'\[.*?\]', response)
+            if json_match:
+                hardware_list = json.loads(json_match.group())
+            else:
+                hardware_list = []
+
+        scenario_list = []
+        for hardware in hardware_list:
+            if hardware == "AUDIO":
+                for audio_kind in audio_kind_list:
+                    if audio_kind == "Navigation":
+                        scenario_list.append((AudioType.NAVIGATION, navigation_audio_prompt))
+                    elif audio_kind == "Music":
+                        scenario_list.append((AudioType.MUSIC, music_audio_prompt))
+                    elif audio_kind == "Video":
+                        scenario_list.append((AudioType.VIDEO, video_audio_prompt))
+                    elif audio_kind == "Communication":
+                        scenario_list.append((AudioType.COMMUNICATION, communication_audio_prompt))
+            elif hardware == "CAMERA":
+                scenario_list.append(camera_prompt)
+            elif hardware == "MICRO":
+                scenario_list.append(micro_prompt)
+            elif hardware == "KEYBOARD":
+                scenario_list.append(keyboard_prompt)
+            else:
+                logger.debug("Unknown hardware resource")
+        for scenario in scenario_list:
+            self.explore_agent.explore(scenario)
+            # Close the app and open it again
+            # self.device.automator.close_app(app_package_name)
+            # self.device.automator.start_app(app_package_name)
 
 
 class AppTestAgent(Agent):
-    def __init__(self):
+    def __init__(self, explore_agent):
         super().__init__()
         self.llm = GeneralLLM()
+        self.explore_agent = explore_agent
 
-    def test(self, scenario):
+    def test(self, request):
         """
         Test the app
         """
-        pass
+        logger.debug("-----------------------App test-----------------------")
+        # Build scenario
+        scenario_str = self._build_scenario(request, "app_test")
+        logger.debug(scenario_str)
+        
+        # Parse scenario
+        try:
+            scenarios = json.loads(scenario_str)
+        except json.JSONDecodeError:
+            json_pattern = r'\[\s*\{.*\}\s*\]'
+            json_match = re.search(json_pattern, scenario_str, re.DOTALL)
+            if json_match:
+                try:
+                    scenarios = json.loads(json_match.group(0))
+                except json.JSONDecodeError:
+                    json_str = re.search(r'\[\s*{.*}\s*\]', scenario_str, re.DOTALL | re.MULTILINE).group(0)
+                    scenarios = json.loads(json_str)
+            else:
+                logger.error("Failed to extract JSON from response")
+                return
+                    
+        # Explore the app
+        for scenario_item in scenarios:
+            scenario_name = scenario_item.get("scenario_name", "")
+            scenario_data = scenario_item.get("scenario", {})
+            
+            logger.debug(f"Running scenario: {scenario_name}")
+         
+            # Explore the app
+            self.explore_agent.explore(scenario_data)
+
+            # Close the app and open it again
+            # self.device.automator.close_app(app_package_name)
+            # self.device.automator.start_app(app_package_name)
 
 
 class UserTaskAgent(Agent):
-    def __init__(self):
+    def __init__(self, explore_agent):
         super().__init__()
         self.llm = GeneralLLM()
+        self.explore_agent = explore_agent
     
     def task(self, request):
         """
         Task the request
         """
-        pass
+        logger.debug("-----------------------User task-----------------------")
+        # Build scenario
+        scenario = self._build_scenario(request, "user_task")
+        logger.debug(scenario)
 
+        # Explore the app
+        self.explore_agent.explore(scenario)
 
 class MultiAgent:
     def __init__(self, device=None):
         self.device = device
+        self.explore_agent = MobilePhoneAgent()
         self.classify_agent = ClassifyAgent()
-        self.user_task_agent = UserTaskAgent()
-        self.hardware_test_agent = HardwareTestAgent()
-        self.app_test_agent = AppTestAgent()
+        self.user_task_agent = UserTaskAgent(self.explore_agent)
+        self.hardware_test_agent = HardwareTestAgent(self.explore_agent)
+        self.app_test_agent = AppTestAgent(self.explore_agent)
         
     def explore(self, request):
         """
