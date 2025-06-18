@@ -1,12 +1,12 @@
-from hmbot.device import Device
-from hmbot.connector.hdc import HDC
-from hmbot.vht import VHTParser
-from hmbot.cv import write
+from hmbot.device.device import Device
+from hmbot.device.connector.hdc import HDC
+from hmbot.model.vht import VHTParser
+from hmbot.utils.cv import write
 import uiautomator2
-from hmbot.event import KeyEvent
-from hmbot.proto import SystemKey
-from hmbot.ptg import PTG
-from hmbot.page import Page
+from hmbot.model.event import KeyEvent
+from hmbot.utils.proto import SystemKey
+from hmbot.model.ptg import PTG
+from hmbot.model.page import Page
 from hmbot.app.harmony_app import HarmonyApp
 from hmbot.app.app import App
 

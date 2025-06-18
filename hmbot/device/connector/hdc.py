@@ -1,6 +1,6 @@
 from .connector import Connector
-from ..exception import DeviceError, HDCError
-from ..proto import PageInfo, Resource, AudioInfo, AudioType, CameraInfo, CameraType
+from hmbot.utils.exception import DeviceError, HDCError
+from hmbot.utils.proto import PageInfo, Resource, AudioInfo, AudioType, CameraInfo, CameraType
 from loguru import logger
 import subprocess, re
 
@@ -14,7 +14,7 @@ class HDC(Connector):
     def __init__(self, device=None):
         if device is None and len(HDC.devices()) > 0:
             self.serial = HDC.devices()[0]
-        from ..device.device import Device
+        from hmbot.device.device import Device
         if isinstance(device, Device):
             self.serial = device.serial
         else:
@@ -106,7 +106,7 @@ class HDC(Connector):
 
     def get_uid(self, bundle=None):
         if not bundle:
-            bundle = self.page_info.bundle
+            bundle = self.page_info().bundle
         ps_info = self.shell_grep("ps -ef", bundle).split()
         if len(ps_info) > 2:
             return ps_info[0]

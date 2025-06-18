@@ -1,12 +1,12 @@
 import time
 from .app.android_app import AndroidApp
 from .app.harmony_app import HarmonyApp
-from .device import Device
-from .event import StartAppEvent
+from .device.device import Device
+from .model.event import StartAppEvent
 from .explorer.llm import LLM
-from .proto import OperatingSystem, ExploreGoal
-from .page import Page
-from .ptg import PTG
+from .utils.proto import OperatingSystem, ExploreGoal
+from .model.page import Page
+from .model.ptg import PTG
 from loguru import logger
 import os
 import shutil

@@ -1,8 +1,8 @@
 from .automator import Automator
+from hmbot.model.vht import VHTParser, VHT, VHTNode
+from hmbot.utils.proto import SwipeDirection, DisplayInfo, DisplayRotation, SystemKey
+from hmbot.app.app import App
 from loguru import logger
-from ..vht import VHTParser, VHT, VHTNode
-from ..proto import SwipeDirection, DisplayInfo, DisplayRotation, SystemKey
-from ..app.app import App
 import uuid, os, shutil
 import uiautomator2
 import time

@@ -2,10 +2,10 @@ import sys
 import time
 from typing import Union
 from loguru import logger
-from .exception import*
-from .proto import SwipeDirection
-from .rfl.system_rfl import system_rfl
-from .page import Page
+from ..utils.exception import*
+from ..utils.proto import SwipeDirection
+from ..utils.rfl.system_rfl import system_rfl
+from ..model.page import Page
 
 class Device(object):
     """
@@ -101,7 +101,7 @@ class Device(object):
         if self.page == None or refresh:
             vht = self.dump_hierarchy(device=device)
             img = self.screenshot()
-            rsc = self.get_resource_status()
+            rsc = self.resources()
             info = self.page_info()
             self.page = Page(vht=vht, img=img, rsc=rsc, info=info)
         return self.page
@@ -113,8 +113,8 @@ class Device(object):
         for event in events:
             event.execute()
 
-    def get_audio_status(self, bundle=None):
-        return self.connector.get_audio_status(bundle)
+    # def get_audio(self, bundle=None):
+    #     return self.connector.get_audio(bundle)
 
-    def get_resource_status(self, bundle=None):
-        return self.connector.get_resource_status(bundle)
+    def resources(self, bundle=None):
+        return self.connector.get_resources(bundle)

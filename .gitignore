@@ -1,6 +1,7 @@
 *.json
 *.jpg
 *.jpeg
+*.jpng
 *.xml
 .DS_Store
 *.pyc

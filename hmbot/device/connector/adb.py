@@ -1,6 +1,6 @@
 from .connector import Connector
-from ..exception import DeviceError, ADBError
-from ..proto import ResourceType, AudioStatus, MicroStatus, PageInfo
+from hmbot.utils.exception import DeviceError, ADBError
+from hmbot.utils.proto import PageInfo
 from loguru import logger
 import subprocess
 import re
@@ -13,7 +13,7 @@ except ImportError:
 
 class ADB(Connector):
     def __init__(self, device=None):
-        from ..device.device import Device
+        from hmbot.device.device import Device
         if isinstance(device, Device):
             self.serial = device.serial
         else:
@@ -92,10 +92,10 @@ class ADB(Connector):
         if not bundle:
             bundle = self.current_ability().get('bundle')
         return {
-            ResourceType.AUDIO: self.get_audio_status(bundle),
-            ResourceType.CAMERA: self.get_camera_status(),
-            ResourceType.MICRO: self.get_micro_status(bundle),
-            ResourceType.KEYBOARD: self.get_keyboard_status()
+            # ResourceType.AUDIO: self.get_audio_status(bundle),
+            # ResourceType.CAMERA: self.get_camera_status(),
+            # ResourceType.MICRO: self.get_micro_status(bundle),
+            # ResourceType.KEYBOARD: self.get_keyboard_status()
         }
 
     def get_audio(self, bundle=None):
@@ -143,31 +143,32 @@ class ADB(Connector):
 
         uid_ = self.get_uid(bundle)
         audio_status = ''
-        for (uid, pid), status in audio_status_dict.items():
-            if uid != uid_:
-                continue
-            if status == 'started':
-                if not focus_dict:
-                    return AudioStatus.STOP
-                if (uid, pid) not in focus_dict:
-                    if started_count > 1:
-                        return AudioStatus.START_
-                    else:
-                        return AudioStatus.START
-                if focus_dict[(uid, pid)][1] == 'LOSS_TRANSIENT_CAN_DUCK':
-                    return AudioStatus.DUCK
-                else:
-                    return AudioStatus.START
-            if status == 'paused':
-                if (uid, pid) not in focus_dict:
-                    audio_status = AudioStatus.PAUSE
-                    continue
-                if focus_dict[(uid, pid)][1] == 'LOSS_TRANSIENT':
-                    audio_status = AudioStatus.PAUSE_
-                else:
-                    audio_status = AudioStatus.PAUSE
-            if status == 'stopped' or status == 'idle':
-                audio_status = AudioStatus.STOP
+        # ============to modify by HBR=================
+        # for (uid, pid), status in audio_status_dict.items():
+        #     if uid != uid_:
+        #         continue
+        #     if status == 'started':
+        #         if not focus_dict:
+        #             return AudioStatus.STOP
+        #         if (uid, pid) not in focus_dict:
+        #             if started_count > 1:
+        #                 return AudioStatus.START_
+        #             else:
+        #                 return AudioStatus.START
+        #         if focus_dict[(uid, pid)][1] == 'LOSS_TRANSIENT_CAN_DUCK':
+        #             return AudioStatus.DUCK
+        #         else:
+        #             return AudioStatus.START
+        #     if status == 'paused':
+        #         if (uid, pid) not in focus_dict:
+        #             audio_status = AudioStatus.PAUSE
+        #             continue
+        #         if focus_dict[(uid, pid)][1] == 'LOSS_TRANSIENT':
+        #             audio_status = AudioStatus.PAUSE_
+        #         else:
+        #             audio_status = AudioStatus.PAUSE
+        #     if status == 'stopped' or status == 'idle':
+        #         audio_status = AudioStatus.STOP
         return audio_status
 
     def get_camera(self):

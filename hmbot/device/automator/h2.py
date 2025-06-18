@@ -1,10 +1,10 @@
 from .automator import Automator
-from loguru import logger
+from hmbot.model.vht import VHTParser
+from hmbot.utils.proto import SwipeDirection, DisplayInfo
+from hmbot.app.app import App
 from hmdriver2.driver import Driver
 from hmdriver2.proto import KeyCode
-from ..vht import VHTParser
-from ..proto import SwipeDirection, DisplayInfo
-from ..app.app import App
+from loguru import logger
 import uuid, os, shutil, logging
 h2_logger = logging.getLogger('hmdriver2')
 h2_logger.setLevel(logging.CRITICAL)
@@ -78,7 +78,7 @@ class H2(Automator):
         if isinstance(path, str):
             _uuid = uuid.uuid4().hex
             _tmp_path = f"_tmp_{_uuid}.jpeg"
-            from ..cv import read
+            from hmbot.utils.cv import read
             img = read(self._driver.screenshot(_tmp_path))
             if path:
                 shutil.copyfile(_tmp_path, path)
