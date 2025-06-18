@@ -1,5 +1,5 @@
 from .vht import VHT, VHTParser
-from .cv import write
+from ..utils.cv import write
 
 class Page(object):
     def __init__(self, vht, img, rsc, info):

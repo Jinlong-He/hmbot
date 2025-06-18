@@ -13,7 +13,7 @@ except ImportError:
 
 class ADB(Connector):
     def __init__(self, device=None):
-        from ..device import Device
+        from ..device.device import Device
         if isinstance(device, Device):
             self.serial = device.serial
         else:

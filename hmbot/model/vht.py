@@ -1,5 +1,5 @@
 import xml.etree.ElementTree as ET
-from .exception import*
+from ..utils.exception import*
 import json, re
 
 class VHT(object):

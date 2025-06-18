@@ -5,7 +5,7 @@ from hmbot.explorer.llm import GeneralLLM, SpecializedLLM
 import re
 import json
 from hmbot.explorer.prompt import *
-from hmbot.cv import encode_image
+from hmbot.utils.cv import encode_image
 
 
 class Agent(object):

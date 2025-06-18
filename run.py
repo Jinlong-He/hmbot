@@ -1,8 +1,8 @@
 import argparse
-from hmbot.proto import OperatingSystem
+from hmbot.utils.proto import OperatingSystem
 from config import init_config
 from hmbot.hmbot import HMBot
-from hmbot.wtg import WTGParser
+from hmbot.model.ptg import WTGParser
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -36,10 +36,10 @@ if __name__ == '__main__':
         if args.os:
             os = args.os
             if os == OperatingSystem.HARMONY:
-                from hmbot.utils import get_harmony_available_devices
+                from hmbot.utils.utils import get_harmony_available_devices
                 print(get_harmony_available_devices())
             if os == OperatingSystem.ANDROID:
-                from hmbot.utils import get_android_available_devices
+                from hmbot.utils.utils import get_android_available_devices
                 print(get_android_available_devices())
     if args.command == 'explore':
         llm_config = init_config()

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import re
-from .proto import SystemKey
+from ..utils.proto import SystemKey
 
 class Event(ABC):
     @abstractmethod

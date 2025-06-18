@@ -1,5 +1,5 @@
 from .app import App
-from ..device import Device
+from ..device.device import Device
 from loguru import logger
 
 class HarmonyApp(App):

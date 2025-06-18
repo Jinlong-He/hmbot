@@ -14,7 +14,7 @@ class HDC(Connector):
     def __init__(self, device=None):
         if device is None and len(HDC.devices()) > 0:
             self.serial = HDC.devices()[0]
-        from ..device import Device
+        from ..device.device import Device
         if isinstance(device, Device):
             self.serial = device.serial
         else:
