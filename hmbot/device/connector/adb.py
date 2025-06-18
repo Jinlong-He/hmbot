@@ -1,6 +1,6 @@
 from .connector import Connector
 from hmbot.utils.exception import DeviceError, ADBError
-from hmbot.utils.proto import PageInfo
+from hmbot.utils.proto import PageInfo, Resource, AudioInfo, AudioType, Status, CameraInfo, CameraType
 from loguru import logger
 import subprocess
 import re
@@ -41,7 +41,12 @@ class ADB(Connector):
         return r
 
     def shell(self, extra_args):
-        pass
+        if not isinstance(extra_args, str):
+            msg = "invalid arguments: %s\nshould be str, %s given" % (extra_args, type(extra_args))
+            logger.warning(msg)
+            raise ADBError(msg)
+        extra_args = 'shell ' + extra_args
+        return self.run_cmd(extra_args)
 
     def shell_grep(self, extra_args, grep_args):
         if isinstance(extra_args, str):
@@ -79,7 +84,7 @@ class ADB(Connector):
 
     def get_uid(self, bundle=None):
         if not bundle:
-            bundle = self.current_ability().get('bundle')
+            bundle = self.page_info().bundle
         process_lines = self.shell_grep("ps", bundle).splitlines()
         if len(process_lines) > 0:
             usr_name = process_lines[0].split()[0]
@@ -90,17 +95,15 @@ class ADB(Connector):
 
     def get_resources(self, bundle=None):
         if not bundle:
-            bundle = self.current_ability().get('bundle')
-        return {
-            # ResourceType.AUDIO: self.get_audio_status(bundle),
-            # ResourceType.CAMERA: self.get_camera_status(),
-            # ResourceType.MICRO: self.get_micro_status(bundle),
-            # ResourceType.KEYBOARD: self.get_keyboard_status()
-        }
+            bundle = self.page_info().bundle
+        return Resource(audio=self.get_audio(bundle),
+                        camera=self.get_camera(bundle))
 
     def get_audio(self, bundle=None):
+        # to modify
+        return AudioInfo(type=AudioType.MUSIC, stat=Status.RUNNING)
         if not bundle:
-            bundle = self.current_ability().get('bundle')
+            bundle = self.page_info().bundle
 
         audio_lines = self.shell_grep("dumpsys audio", "AudioPlaybackConfiguration").splitlines()
         audio_line_re = re.compile(".*u/pid:(.*)/(.*) .*state:(.*) attr.*")
@@ -171,6 +174,8 @@ class ADB(Connector):
         #         audio_status = AudioStatus.STOP
         return audio_status
 
-    def get_camera(self):
-        return 'default'
+    def get_camera(self, bundle=None):
+        # to modify
+        return CameraInfo(type=CameraType.FRONT,
+                         stat=Status.STOPPED)
 

@@ -64,12 +64,8 @@ class Connector(ABC):
         Run a shell-command and return the resource status of the current app (including audio, camera).
 
         Returns:
-            {
-                'audio': str,
-                'camera': str,
-                'micro': str,
-                'keyboard': str
-            } output of the resource status of the current app.
+            Resource(audio=AudioInfo, camera=CameraInfo),
+            output of the resource status of the current app.
         """
         pass
 
@@ -79,7 +75,8 @@ class Connector(ABC):
         Run a shell-command and return the audio status of the current app.
 
         Returns:
-            str: output of the audio status of the current app.
+            AudioInfo(type: AudioType, stat: Status),
+            output of the audio info of the current app.
         """
         pass
 
@@ -89,7 +86,8 @@ class Connector(ABC):
         Run a shell-command and return the camera status of the current app.
 
         Returns:
-            str: output of the camera status of the current app.
+            CameraInfo(type: CameraType, stat: Status),
+            output of the camera info of the current app.
         """
         pass
 
