@@ -1,6 +1,6 @@
 from .connector import Connector
 from hmbot.utils.exception import DeviceError, HDCError
-from hmbot.utils.proto import PageInfo, Resource, AudioInfo, AudioType, CameraInfo, CameraType
+from hmbot.utils.proto import PageInfo, Resource, AudioInfo, AudioType, CameraInfo, CameraType, Status
 from loguru import logger
 import subprocess, re
 
@@ -19,7 +19,8 @@ class HDC(Connector):
             self.serial = device.serial
         else:
             raise DeviceError
-        self.cmd_prefix = ['hdc', "-t", device.serial]
+        self.cmd_prefix = ['hdc', "-t", self.serial]
+        self.info = self.page_info()
 
     def run_cmd(self, extra_args):
         if isinstance(extra_args, str):
@@ -40,23 +41,21 @@ class HDC(Connector):
         return r
 
     def shell(self, extra_args):
-        if isinstance(extra_args, str):
-            extra_args = extra_args.split()
-        if not isinstance(extra_args, list):
+        if not isinstance(extra_args, str):
             msg = "invalid arguments: %s\nshould be str, %s given" % (extra_args, type(extra_args))
             logger.warning(msg)
             raise HDCError(msg)
-        extra_args = ['shell'] + extra_args
+        extra_args = 'shell ' + extra_args
         return self.run_cmd(extra_args)
 
     def _hidumper(self, ability, extra_args):
-        if isinstance(extra_args, str):
-            extra_args = [extra_args]
-        else:
+        if not isinstance(extra_args, str):
+            # extra_args = [extra_args]
+        # else:
             msg = "invalid arguments: %s\nshould be str, %s given" % (extra_args, type(extra_args))
             logger.warning(msg)
             raise HDCError(msg)
-        extra_args = ['hidumper', '-s', ability, '-a'] + extra_args
+        extra_args = f'hidumper -s {ability} -a ' + extra_args
         return self.shell(extra_args)
 
     def shell_grep(self, extra_args, grep_args):
@@ -91,10 +90,13 @@ class HDC(Connector):
             if 'state #FOREGROUND  start time' in mission and 'app state #FOREGROUND' in mission:
                 match = infos_re.match(mission)
                 if match:
-                    return PageInfo(bundle=match.groups()[2], 
-                                    ability=match.groups()[1],
-                                    name='')
+                    self.info = PageInfo(bundle=match.groups()[2],
+                                         ability=match.groups()[1],
+                                         name='')
+                    return self.info
+        return None
 
+    @classmethod
     def devices(cls):
         args = ['hdc', 'list', 'targets']
         logger.debug('command: %s' % args)
@@ -106,27 +108,35 @@ class HDC(Connector):
 
     def get_uid(self, bundle=None):
         if not bundle:
-            bundle = self.page_info().bundle
+            if not self.info:
+                self.info = self.page_info()
+            bundle = self.info.bundle
         ps_info = self.shell_grep("ps -ef", bundle).split()
         if len(ps_info) > 2:
             return ps_info[0]
 
     def get_pid(self, bundle=None):
         if not bundle:
-            bundle = self.page_info().bundle
+            if not self.info:
+                self.info = self.page_info()
+            bundle = self.info.bundle
         ps_info = self.shell_grep("ps -ef", bundle).split()
         if len(ps_info) > 2:
             return ps_info[1]
 
     def get_resources(self, bundle=None):
         if not bundle:
-            bundle = self.page_info().bundle
-        return Resource(audio= self.get_audio(),
-                        camera= self.get_camera())
+            if not self.info:
+                self.info = self.page_info()
+            bundle = self.info.bundle
+        return Resource(audio=self.get_audio(bundle),
+                        camera=self.get_camera(bundle))
 
     def get_audio(self, bundle=None):
         uid = self.get_uid(bundle)
         pid = self.get_pid(bundle)
+        # todo
+        type = AudioType.MUSIC
 
         session_id_infos = self.shell_grep("hidumper -s AudioDistributed", "sessionId").splitlines()
         session_id = 0
@@ -159,12 +169,14 @@ class HDC(Connector):
         for index, stream_id in enumerate(stream_id_list):
             if stream_id == session_id:
                 status = status_list[index]
+        print(f'status={status}')
         if status in ['RUNNING']:
-            return 'START'
-        if 'STOPPED' in status:
-            return 'STOP'
-        return
+            return AudioInfo(type, Status.RUNNING)
+        return AudioInfo(type, Status.STOPPED)
 
-    def get_camera(self):
-        pass
+    def get_camera(self, bundle=None):
+        # todo
+        return CameraInfo(type=CameraType.FRONT,
+                          stat=Status.STOPPED)
+
 
