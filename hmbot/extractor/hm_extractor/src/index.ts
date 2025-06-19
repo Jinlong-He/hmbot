@@ -1,20 +1,20 @@
-// ptg/algorithm
-export { BackwardAnalysis } from './ptg/algorithm/BackwardAnalysis';
-export { ForwardAnalysis } from './ptg/algorithm/ForwardAnalysis';
+// core/algorithm
+export { BackwardAnalysis } from './core/algorithm/BackwardAnalysis';
+export { ForwardAnalysis } from './core/algorithm/ForwardAnalysis';
 
-// ptg/common
-export * from './ptg/common/Utils';
+// core/common
+export * from './core/common/Utils';
 
-// ptg/model
-export {PageTransitionGraph} from './ptg/model/PageTransitionGraph';
-export {NavigationEdgeBuilderwithIR} from './ptg/model/builder/edgeBuilder/NavigationEdgeBuilderwithIR';
-export {RouterEdgeBuilderwithCode } from './ptg/model/builder/edgeBuilder/RouterEdgeBuilderwithCode';
-export {RouterEdgeBuilderwithIR } from './ptg/model/builder/edgeBuilder/RouterEdgeBuilderwithIR';
-export {MainPageNodeBuilder } from './ptg/model/builder/nodeBuilder/MainPageNodeBuilder';
+// core/model
+export {PageTransitionGraph} from './core/model/PageTransitionGraph';
+export {NavigationEdgeBuilderwithIR} from './core/model/builder/edgeBuilder/NavigationEdgeBuilderwithIR';
+export {RouterEdgeBuilderwithCode } from './core/model/builder/edgeBuilder/RouterEdgeBuilderwithCode';
+export {RouterEdgeBuilderwithIR } from './core/model/builder/edgeBuilder/RouterEdgeBuilderwithIR';
+export {MainPageNodeBuilder } from './core/model/builder/nodeBuilder/MainPageNodeBuilder';
 
 
-// ptg/parser
-export { BasicPTGParser } from './ptg/parser/BasicPTGParser';
+// core/parser
+export { BasicPTGParser } from './core/parser/BasicPTGParser';
 
 
 //ohos-typescript
