@@ -1,6 +1,6 @@
 import { Stmt, ArkMethod, Scene, ArkInvokeStmt, Cfg, ArkAssignStmt, Local } from "../../../../arkanalyzer/src";
 import { PageTransitionGraph, PTGNode } from "../../PageTransitionGraph";
-import { EdgeBuilderInterface } from "./EdgeBuilderInterface";
+import { EdgeBuilderInterface } from "./BasicEdgeBuilder";
 import Const from "../../../common/Constant";
 import Utils, { MyValue } from "../../../common/Utils";
 
@@ -71,7 +71,7 @@ export class RouterEdgeBuilderwithIR implements EdgeBuilderInterface{
                         //获取目标页面类的名字
                         if(pageTargetValue instanceof StringConstant){
                             let targetPageName  = (pageTargetValue as StringConstant).getValue()
-                            callee = Utils.getComponentClassOfPage(this.scene, targetPageName)!.getSignature().toString();
+                            // callee = Utils.getComponentClassOfPage(this.scene, targetPageName)!.getSignature().toString();
                         }
                         this.ptg.addPTGEdgeByName(caller, callee, unit);
                     }

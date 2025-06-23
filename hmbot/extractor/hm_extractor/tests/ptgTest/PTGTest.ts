@@ -23,7 +23,7 @@ import { RouterEdgeBuilderwithCode } from '../../src/core/model/builder/edgeBuil
 import { RouterEdgeBuilderwithIR} from '../../src/core/model/builder/edgeBuilder/RouterEdgeBuilderwithIR';
 import { NavigationEdgeBuilderwithIR} from '../../src/core/model/builder/edgeBuilder/NavigationEdgeBuilderwithIR';
 
-import { MainPageNodeBuilder } from '../../src/core/model/builder/nodeBuilder/MainPageNodeBuilder';
+import { MainPageNodeBuilder } from '../../src/core/model/builder/nodeBuilder/NodeBuilder';
 import { RouterMapNodeBuilder } from '../../src/core/model/builder/nodeBuilder/RouterMapNodeBuilder';
 
 

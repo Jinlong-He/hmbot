@@ -1,6 +1,6 @@
 import { Stmt, ArkMethod, Scene, ArkInvokeStmt } from "../../../../arkanalyzer/src";
 import { PageTransitionGraph, PTGNode } from "../../PageTransitionGraph";
-import { EdgeBuilderInterface } from "./EdgeBuilderInterface";
+import { EdgeBuilderInterface } from "./BasicEdgeBuilder";
 import Utils from "../../../common/Utils";
 
 export class RouterEdgeBuilderwithCode implements EdgeBuilderInterface{
@@ -47,7 +47,7 @@ export class RouterEdgeBuilderwithCode implements EdgeBuilderInterface{
                     // 获取目标页面名
                     let targetPageName = match[1];
                     // 获取目标页面类的签名
-                    callee = Utils.getComponentClassOfPage(this.scene, targetPageName)!.getSignature().toString();
+                    // callee = Utils.getComponentClassOfPage(this.scene, targetPageName)!.getSignature().toString();
                     this.ptg.addPTGEdgeByName(caller, callee, unit);
                 }
             }

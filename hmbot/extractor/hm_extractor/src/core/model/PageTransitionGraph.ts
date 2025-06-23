@@ -51,27 +51,37 @@ export class PTGEdge extends BaseEdge {
 }
 
 export class PTGNode extends BaseNode {
+    private module: string;
     private page: string;
     private pageAlias = "";
     private clazz: Class;
     private viewTree: ViewTree | undefined;
 
-    constructor(id: number, p: string, c: ArkClass, v: ViewTree | undefined) {
+    constructor(id: number, m: string, p: string, c: ArkClass, v: ViewTree | undefined) {
         super(id, PageTransitionGraphNodeKind.default);
+        this.module = m;
         this.page = p;
         this.clazz = c.getSignature();
         this.viewTree = v; 
+    }
+
+    setModule(m: string) {
+        this.module = m;
+    }
+
+    public getModule(): string {
+        return this.module;
     }
 
     setPageAlias(p: string) {
         this.pageAlias = p;
     }
 
-    getPageAlias(): string  {
+    public getPageAlias(): string  {
         return this.pageAlias;
     }
 
-    public getPageName(): string {
+    public getPagePath(): string {
         return this.page;   
     }
 
@@ -94,6 +104,7 @@ export class PageTransitionGraph extends BaseExplicitGraph {
     private scene: Scene;
     private callPairToEdgeMap: Map<string, PTGEdge> = new Map();
     private classToPTGNodeMap: Map<string, NodeID> = new Map();
+    private pathToPTGNodeMap: Map<string, NodeID> = new Map();
 
     constructor(s: Scene) {
         super();
@@ -119,6 +130,10 @@ export class PageTransitionGraph extends BaseExplicitGraph {
     public getClassToPTGNodeMap(): Map<string, NodeID> {
         return this.classToPTGNodeMap;
     }
+
+    public getPathToPTGNodeMap(): Map<string, NodeID> {
+        return this.pathToPTGNodeMap;
+    }
     
     public getCallEdgeByPair(srcID: NodeID, dstID: NodeID): PTGEdge | undefined {
         let key: string = this.getCallPairString(srcID, dstID);
@@ -129,19 +144,20 @@ export class PageTransitionGraph extends BaseExplicitGraph {
         return `${srcID}-${dstID}`;
     }
 
-    addPTGNode(page: string, clazz: ArkClass, viewTree: ViewTree | undefined): PTGNode ;
-    addPTGNode(page: string, clazz: ArkClass, viewTree: ViewTree | undefined, pageName: string): PTGNode ;
+    addPTGNode(module: string, page: string, clazz: ArkClass, viewTree: ViewTree | undefined): PTGNode ;
+    addPTGNode(module: string, page: string, clazz: ArkClass, viewTree: ViewTree | undefined, pageName: string): PTGNode ;
 
     //add Info
-    public addPTGNode(page: string,  clazz: ArkClass, viewTree: ViewTree | undefined, pageName?: string): PTGNode {
+    public addPTGNode(module: string, page: string,  clazz: ArkClass, viewTree: ViewTree | undefined, pageName?: string): PTGNode {
         let id: NodeID = this.nodeNum;
-        let ptgNode = new PTGNode(id, page, clazz, viewTree);
+        let ptgNode = new PTGNode(id, module, page, clazz, viewTree);
         if(pageName!=undefined){
             ptgNode.setPageAlias(pageName);
         }
         this.classToPTGNodeMap.set(clazz.getSignature().toString(), id);
+        this.pathToPTGNodeMap.set(page, id);
         this.addNode(ptgNode);
-        console.log('\x1b[34m%s\x1b[0m', "add PTG node: " + ptgNode.getID() + " " + ptgNode.getPageName());
+        console.log('\x1b[34m%s\x1b[0m', "add PTG node: " + ptgNode.getID() + " " + ptgNode.getPagePath());
         return ptgNode;
     }
 
@@ -165,7 +181,7 @@ export class PageTransitionGraph extends BaseExplicitGraph {
             this.callPairToEdgeMap.set(this.getCallPairString(callerNode.getID(), calleeNode.getID()), callEdge);
             callerNode.addOutgoingEdge(callEdge);
             calleeNode.addIncomingEdge(callEdge);
-            console.log('\x1b[32m%s\x1b[0m',`addPTGEdge: ${callerNode.getPageName()} -> ${calleeNode.getPageName()}`);
+            console.log('\x1b[32m%s\x1b[0m',`addPTGEdge: ${callerNode.getPagePath()} -> ${calleeNode.getPagePath()}`);
         }
     }
    
@@ -189,14 +205,14 @@ export class PageTransitionGraph extends BaseExplicitGraph {
             if (key === 'outEdges') {
                 let list = new Array<string>();
                 for(const edge of value as PTGEdge[] ){
-                    list.push(edge.getSrcPTGNode().getPageName() +" -> "+ edge.getDstPTGNode().getPageName())
+                    list.push(edge.getSrcPTGNode().getPagePath() +" -> "+ edge.getDstPTGNode().getPagePath())
                 }
                 return list;
             }
             if (key === 'inEdges') {
                 let list = new Array<string>();
                 for(const edge of value as PTGEdge[] ){
-                    list.push(edge.getSrcPTGNode().getPageName() +" -> "+ edge.getDstPTGNode().getPageName())
+                    list.push(edge.getSrcPTGNode().getPagePath() +" -> "+ edge.getDstPTGNode().getPagePath())
                 }
                 return list;
             }

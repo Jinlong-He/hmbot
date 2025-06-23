@@ -3,9 +3,9 @@ import { PageTransitionGraph, PTGNode } from "../PageTransitionGraph";
 import { CallGraph } from "../../../arkanalyzer/src/callgraph/model/CallGraph";
 import { ArkMethod } from "../../../arkanalyzer/src/core/model/ArkMethod";
 import { CALLBACK_METHOD_NAME, MethodSignature, ViewTreeNode } from "../../../arkanalyzer/src";
-import { NodeBuilderInterface } from "./nodeBuilder/NodeBuilderInterface";
-import { MainPageNodeBuilder } from "./nodeBuilder/MainPageNodeBuilder";
-import { EdgeBuilderInterface } from "./edgeBuilder/EdgeBuilderInterface";
+import { NodeBuilderInterface } from "./nodeBuilder/BasicNodeBuilder";
+import { NodeBuilder } from "./nodeBuilder/NodeBuilder";
+import { EdgeBuilderInterface } from "./edgeBuilder/BasicEdgeBuilder";
 import { RouterEdgeBuilderwithCode } from "./edgeBuilder/RouterEdgeBuilderwithCode";
 import { RouterEdgeBuilderwithIR } from "./edgeBuilder/RouterEdgeBuilderwithIR";
 
@@ -42,10 +42,13 @@ export class BasicPTGModelBuilder {
         */
     public identifyPageNodes(){
         if(this.nodeBuilders.length == 0){
-            this.nodeBuilders.push(new MainPageNodeBuilder(this.scene,this.ptg));
+            this.nodeBuilders.push(new NodeBuilder(this.scene,this.ptg));
         }
         for(const nodeBuilder of this.nodeBuilders){
             nodeBuilder.identifyPageNodes();
+        }
+        for (const node of this.ptg.getPTGNodes()) {
+            console.log(node.getPageAlias());
         }
     }
 

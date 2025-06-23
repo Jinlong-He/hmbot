@@ -10,7 +10,7 @@ export {PageTransitionGraph} from './core/model/PageTransitionGraph';
 export {NavigationEdgeBuilderwithIR} from './core/model/builder/edgeBuilder/NavigationEdgeBuilderwithIR';
 export {RouterEdgeBuilderwithCode } from './core/model/builder/edgeBuilder/RouterEdgeBuilderwithCode';
 export {RouterEdgeBuilderwithIR } from './core/model/builder/edgeBuilder/RouterEdgeBuilderwithIR';
-export {MainPageNodeBuilder } from './core/model/builder/nodeBuilder/MainPageNodeBuilder';
+export {NodeBuilder } from './core/model/builder/nodeBuilder/NodeBuilder';
 
 
 // core/parser

@@ -1,6 +1,6 @@
 import { Stmt, ArkMethod, FileSignature, Scene } from "../../../../arkanalyzer/src";
 import { PageTransitionGraph, PTGNode } from "../../PageTransitionGraph";
-import { NodeBuilderInterface } from "./NodeBuilderInterface";
+import { NodeBuilderInterface } from "./BasicNodeBuilder";
 import Const from "../../../common/Constant";
 import fs from "fs";
 import Utils from "../../../common/Utils";
@@ -31,12 +31,12 @@ export class RouterMapNodeBuilder implements NodeBuilderInterface{
             if (result.hasOwnProperty(key)) {
                 const value = result[key];
                 // console.log(`${key}: ${value}`);
-                let clazz = Utils.getComponentClassOfPage(this.scene, value);
-                if(clazz != undefined){
-                    let viewTree = clazz?.getViewTree();
-                    // ptgNodes.push
-                    this.ptg.addPTGNode(value,  clazz, viewTree, key);
-                }
+                // let clazz = Utils.getComponentClassOfPage(this.scene, value);
+                // if(clazz != undefined){
+                //     let viewTree = clazz?.getViewTree();
+                //     // ptgNodes.push
+                //     this.ptg.addPTGNode(value, '',  clazz, viewTree, key);
+                // }
             }
         }
     }
