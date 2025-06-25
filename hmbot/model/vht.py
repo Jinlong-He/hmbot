@@ -166,7 +166,7 @@ class VHTParser(object):
     def __parse_hdc_json(cls, source, device):
         if 'attributes' in source:
             extra = source['attributes']
-            bound_re = '\[(\d+),(\d+)\]\[(\d+),(\d+)\]'
+            bound_re = r'\[(\d+),\s*(\d+)\]\[(\d+),\s*(\d+)\]'
             match = re.match(bound_re, extra['bounds'])
             if match:
                 (x1, y1, x2, y2) = map(int, match.groups())
@@ -232,7 +232,6 @@ class VHTParser(object):
                 if x1 == 2147483647 and y1 == 2147483647 and x2 == -2147483648 and y2 == -2147483648:
                     x1, y1, x2, y2 = 0, 0, 100, 100
             else: 
-                # print(f"警告: 无法解析边界值 '{extra['bounds']}'，使用默认值")
                 x1, y1, x2, y2 = 0, 0, 100, 100
             attrib['bundle'] = extra['package']
             root = VHTNode(device=device,

@@ -2,11 +2,12 @@ from .vht import VHT, VHTParser
 from ..utils.cv import write
 
 class Page(object):
-    def __init__(self, vht, img, rsc, info):
+    def __init__(self, vht, img, rsc, info, id=0):
         self.vht = vht
         self.img = img
         self.rsc = rsc
         self.info = info
+        self.id = id # extract from vht
         self._standardize()
     
     def _standardize(self):
@@ -37,6 +38,8 @@ class Page(object):
 
     def _is_same(self, page):
         # todo
+        if self == page:
+            return True
         return False
         if isinstance(new_window, Window):
             vht_sim = self.vht_similarity(new_window)
