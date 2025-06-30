@@ -132,6 +132,13 @@ class VHTNode(object):
     def input(self, text):
         self._device.input(self, text)
 
+    def get_children(self):
+        # if self.attribute['type'] and ('Layout' not in self.attribute['type'] and 'Group' not in self.attribute['type']):
+        #     return []
+        return self._children
+    
+    def get_label(self):
+        return self.attribute['text']
     
 
 class VHTParser(object):

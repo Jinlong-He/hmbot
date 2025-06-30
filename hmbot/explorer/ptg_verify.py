@@ -2,8 +2,13 @@ import time
 import json
 import re
 import os
+import zss
+import cv2
+import numpy as np
 from loguru import logger
+from pydantic import SecretStr
 from hmbot.model.event import ClickEvent
+from hmbot.model.vht import VHTNode
 from hmbot.utils.cv import encode_image
 from hmbot.model.ptg import PTGParser
 from hmbot.explorer.prompt import *
@@ -11,24 +16,449 @@ from dotenv import load_dotenv
 from langchain.schema import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
-# from langchain_core.prompts import ChatPromptTemplate
-# from langchain.memory import ConversationBufferMemory
-# from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 
 load_dotenv()
 
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
 event_llm = ChatOpenAI(
-    openai_api_base=os.getenv("SPECIALIZED_BASE_URL"),
-    openai_api_key=os.getenv("SPECIALIZED_API_KEY"),	
-    model_name=os.getenv("SPECIALIZED_MODEL"),	
+    model=os.getenv("SPECIALIZED_MODEL") or "gpt-4o",
+    base_url=os.getenv("SPECIALIZED_BASE_URL") or "https://api.openai.com/v1",
+    api_key=SecretStr(os.getenv("SPECIALIZED_API_KEY") or ""),	
 )
+
+
+class PTG_IR(object):
+    def __init__(self, ptg):
+        self.pages = []
+        self.transitions = {}
+        self._ptg_to_ir(ptg)
+
+    def _ptg_to_ir(self, ptg):
+        for page in ptg.pages:
+            self.pages.append(page)
+            if page.id not in self.transitions:
+                self.transitions[page.id] = {}
+            
+            if page in ptg._adj_list:
+                for tgt_page, events in ptg._adj_list[page].items():
+                    self.transitions[page.id][tgt_page.id] = events
+
+    def print_ir(self):
+        for page in self.pages:
+            print(f"Page: {page.id}")
+            if page.id in self.transitions and self.transitions[page.id]:
+                for tgt_page_id, transition in self.transitions[page.id].items():
+                    print(f"  Transition to: {tgt_page_id}")
+                    print(f"    Events: {transition}")
+            else:
+                print(f"  No outgoing transitions")
+            
+
+class PTGVerifier:
+    def __init__(self, device, ptg_dir_path):
+        """
+        Initialize the PTGVerifier
+
+        Args:
+            device: Device object, the device to execute the operation
+            ptg_dir_path: str, the path to the PTG directory
+        """
+        self.device = device
+        # self.ptg = PTGParser.parse(device, ptg_dir_path)
+        self.ptg_ir = PTG_IR(PTGParser.parse(device, ptg_dir_path))
+        # self.ptg_ir.print_ir()
+        self.visited_pages_id = set()
+        
+    def verify_ptg_dfs(self, page_before=None):
+        """
+        Verify the PTG using DFS algorithm
+
+        Args:
+            page_before: Page object, the page to start from, if not provided, start from the first page
+
+        page_before -> page_after
+                    |
+                    |->current_page
+
+        """
+        if page_before is None:
+            page_before = self.ptg_ir.pages[0]
+
+        # Mark current page as visited
+        self.visited_pages_id.add(page_before.id)
+        logger.info(f"Visiting page id: {page_before.id}")
+
+        # Update page_before with the current page
+        self._update_page(page_before)
+        
+        if page_before.id in self.ptg_ir.transitions:
+            # Check all adjacent pages and events of current page
+            for page_after_id, events in self.ptg_ir.transitions[page_before.id].items():
+                logger.info(f"Checking transition to: {page_after_id}")
+                
+                # If target page is not visited, execute events to reach target page and visit recursively
+                if page_after_id not in self.visited_pages_id:
+                    logger.info(f"Executing events to reach page_after...")
+
+                    new_events = []
+                    page_after = self.ptg_ir.pages[page_after_id]
+                    # page_before -> current_page
+                    result, error_type, current_page = self._verify_event_with_llm(page_before, page_after, events)
+
+                    retry_count = 0
+
+                    if result:
+                        # current_page == page_after
+                        logger.info(f"Event verification passed: Successfully reached page_after")
+                        self.verify_ptg_dfs(page_after)
+                    else:       
+                        # current_page != page_after
+                        logger.info(f"Event verification failed: {error_type}")
+                        # current_page -> page_before
+                        if error_type == "wrong_page":
+                            current_page.id = len(self.ptg_ir.pages)
+                            self.ptg_ir.pages.append(current_page)
+                            self.ptg_ir.transitions[page_before.id][current_page.id] = events
+                            return_event_command = self._generate_return_event_command(page_before, current_page, events)
+                            self._execute_event_command(return_event_command, current_page)
+                        # page_before -> page_after
+                        while retry_count < 3:
+                            next_event_command = self._generate_next_event_command(page_before, page_after)
+                            new_events = self._execute_event_command(next_event_command, page_before)
+                            result, error_type, current_page = self._verify_event_with_llm(page_before, page_after, new_events)
+                            if result:
+                                self.ptg_ir.transitions[page_before.id][page_after_id] = new_events
+                                self.verify_ptg_dfs(page_after)
+                                break
+                            else:
+                                # current_page -> page_before
+                                if error_type == "wrong_page":
+                                    return_event_command = self._generate_return_event_command(page_before, current_page, new_events)
+                                    self._execute_event_command(return_event_command, current_page)
+                            retry_count += 1
+
+                    if retry_count == 0:
+                        return_event_command = self._generate_return_event_command(page_before, page_after, events)
+                        self._execute_event_command(return_event_command, page_after)
+                    elif retry_count == 3:
+                        continue
+                    else:
+                        return_event_command = self._generate_return_event_command(page_before, page_after, new_events)
+                        self._execute_event_command(return_event_command, page_after)
+        else:
+            # if no outgoing transitions, explore new page
+            self._explore_new_page(page_before, max_depth=3, current_depth=0)
+
+    def _explore_new_page(self, page, max_depth=3, current_depth=0):
+        if current_depth >= max_depth:
+            return
+        
+        # Initialize transitions for this page if not exists
+        if page.id not in self.ptg_ir.transitions:
+            self.ptg_ir.transitions[page.id] = {}
+        
+        messages = [
+            SystemMessage(content=explore_page_events_prompt),
+            HumanMessage(
+                content=[
+                    {"type": "text", "text": "Please analyze this interface screenshot and identify ONLY the most important clickable elements:"},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(page.img)}"}},
+                ]
+            ),
+        ]
+            
+        response = llm.invoke(messages)
+        response_content = response.text().strip()
+        
+        if response_content.startswith('```'):
+            match = re.search(r'```(?:json)?\s*(.*?)\s*```', response_content, re.DOTALL)
+            if match:
+                response_content = match.group(1).strip()
+        result_json = json.loads(response_content)
+        clickable_events = result_json.get("clickable_events", [])
+        for event in clickable_events:
+            logger.info(f"Events of page {page.id}: {event}")
+        for event in clickable_events:
+            new_events = self._execute_event_command(event, page)
+            new_page = self.device.dump_page(refresh=True)
+            index = self._is_page_exist(new_page)
+            if index == -1:
+                new_page.id = len(self.ptg_ir.pages)
+                self.ptg_ir.pages.append(new_page)
+                self.ptg_ir.transitions[page.id][new_page.id] = new_events
+                self._explore_new_page(new_page, max_depth, current_depth + 1)
+            else:
+                self.ptg_ir.transitions[page.id][index] = new_events
+            return_event_command = self._generate_return_event_command(page, new_page, new_events)
+            self._execute_event_command(return_event_command, new_page)
+            
+    def _update_page(self, page):
+        """
+        Update the page with the current page from the device
+        """
+        current_page = self.device.dump_page(refresh=True)
+        page.img = current_page.img
+        page.vht = current_page.vht
+        page.info = current_page.info
+
+    def _is_page_exist(self, current_page):
+        """
+        Check if the page exists in the PTG
+        """
+        for page in reversed(self.ptg_ir.pages):
+            if self._is_pages_same(page, current_page):
+                return page.id
+        return -1
+
+    def _is_pages_same(self, page1, page2):
+        """
+        Check if the two pages are the same
+        """
+        distance = zss.simple_distance(page1.vht._root, page2.vht._root, get_children=VHTNode.get_children, get_label=VHTNode.get_label)
+        logger.info(f"Distance between page1 and page2: {distance}")
+        distance_value = distance[0] if isinstance(distance, tuple) else distance
+        
+        if distance_value < 3:
+            return True
+        elif distance_value > 30:
+            return False
+        else:
+            # When tree structure is similar, use LLM to verify if they are the same interface
+            return self._verify_same_page_with_llm(page1, page2)
+
+    def _verify_same_page_with_llm(self, page1, page2):
+        """
+        Use LLM to verify if two pages are the same interface
+        Focus on layout structure rather than content
+        """
+        messages = [
+            SystemMessage(content=verify_same_page_prompt),
+            HumanMessage(content=[
+                {"type": "text", "text": "First interface screenshot:"},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(page1.img)}"}},
+                {"type": "text", "text": "Second interface screenshot:"},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(page2.img)}"}},
+                {"type": "text", "text": "Please determine whether these two interfaces are the same interface?"}
+            ])
+        ]
+        
+        response = llm.invoke(messages)
+        response_content = response.text().strip()
+        
+        if response_content.startswith('```'):
+            match = re.search(r'```(?:json)?\s*(.*?)\s*```', response_content, re.DOTALL)
+            if match:
+                response_content = match.group(1).strip()
+        
+        try:
+            result_json = json.loads(response_content)
+            is_same = result_json.get("is_same", False)
+            logger.info(f"LLM page comparison result: {is_same}")
+            return is_same
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse LLM response: {response_content}")
+            return False
+            
+    def test(self):
+        # cv2.imshow('page1', page1.img)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+
+        # page2 = self.device.dump_page(refresh=True)
+        # cv2.imshow('page2', page2.img)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+        # self._is_pages_same(page1, page2)
+        page = self.device.dump_page(refresh=True)
+        page.id = len(self.ptg_ir.pages)
+        self.ptg_ir.pages.append(page)
+        self._explore_new_page(page, max_depth=3, current_depth=0)
+        self.ptg_ir.print_ir()
+
+    def _verify_event_with_llm(self, page_before, page_after, events):
+        """
+        Verify the event with LLM
+
+        Args:
+            page_before: Page object, the page before the event is executed
+            page_after: Page object, the page after the event is executed
+            events: List of events to be executed between page_before and page_after
+        """
+        logger.info("=====================event verify===========================")
+        self.device.execute(events)
+        time.sleep(3)
+        current_page = self.device.dump_page(refresh=True)
+        messages = [
+            SystemMessage(content=verify_ptg_system_prompt),
+            HumanMessage(
+                content=[
+                    {"type": "text", "text": "First image: PTG before node screenshot"},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(page_before.img)}"}},
+                    {"type": "text", "text": "Second image: PTG after node screenshot"},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(page_after.img)}"}},
+                    {"type": "text", "text": "Third image: screenshot after actual event execution"},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(current_page.img)}"}},
+                ]
+            ),
+        ]
+            
+        response = llm.invoke(messages)
+        response_content = response.text().strip()
+        
+        if response_content.startswith('```'):
+            match = re.search(r'```(?:json)?\s*(.*?)\s*```', response_content, re.DOTALL)
+            if match:
+                response_content = match.group(1).strip()
+        
+        result_json = json.loads(response_content)
+        think = result_json.get("think", "")
+        result = result_json.get("result", False)
+        error_type = result_json.get("error_type", "")
+        
+        logger.info(f"Analysis process: {think}")
+        logger.info(f"Verification result: {'Pass' if result else 'Failed'}")
+        logger.info(f"Error type: {error_type}")
+        return result, error_type, current_page
+
+    def _generate_next_event_command(self, page_before, page_after):
+        """
+        Generate the next event command
+
+        Args:
+            page_before: Page object, the page before the event is executed
+            page_after: Page object, the page after the event is executed
+
+        Returns:
+            str: The next event command in natural language
+        """
+        logger.info("=====================generate next event command===========================")
+        messages = [
+            SystemMessage(content=generate_next_event_prompt),
+            HumanMessage(content=[
+                {"type": "text", "text": "First image: page before action"},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(page_before.img)}"}},
+                {"type": "text", "text": "Second image: page after action"},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(page_after.img)}"}},
+            ]),
+        ]
+        response = llm.invoke(messages)
+        logger.info(f"Generated next operation command: {response.text()}")
+        return response.text()
+
+    def _generate_return_event_command(self, page_before, current_page, events):
+        """
+        Generate the return event command
+
+        Args:
+            page_before: Page object, the page after the return event is executed
+            current_page: Page object, the page before the return event is executed
+            events: List of events to be executed between page_before and current_page
+
+        Returns:
+            str: The return event command in natural language
+        """
+        logger.info("=====================generate return event command===========================")
+       
+        # Create image with red boxes marking event locations
+        marked_image = self._draw_event_boxes_on_image(page_before.img, events)
+        
+        messages = [
+            SystemMessage(content=generate_return_operation_prompt),
+            HumanMessage(content=[
+                {"type": "text", "text": "Target page (the page we want to return to, the page before the action is executed). The red boxes mark the locations that were clicked to transition from target page to current page."},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{marked_image}"}},
+                {"type": "text", "text": "Current page (the page after the action is executed, need to return to the target page)"},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(current_page.img)}"}},
+            ]),
+        ]
+        response = llm.invoke(messages)
+        logger.info(f"Generated return operation command: {response.text()}")
+        return response.text()
+
+    def _draw_event_boxes_on_image(self, image, events):
+        """
+        Draw red boxes on the image to mark event locations
+        
+        Args:
+            image: numpy array, the original image
+            events: List of events containing coordinates
+            
+        Returns:
+            str: base64 encoded image with red boxes
+        """
+        if not events:
+            return encode_image(image)
+            
+        # Make a copy of the image to avoid modifying the original
+        marked_image = image.copy()
+        
+        for event in events:
+            if hasattr(event, 'node') and hasattr(event.node, 'attribute'):
+                bounds = event.node.attribute.get('bounds', None)
+                if bounds and len(bounds) == 2:
+                    # Extract coordinates from bounds [[x1, y1], [x2, y2]]
+                    x1, y1 = bounds[0]
+                    x2, y2 = bounds[1]
+                    
+                    # Draw red rectangle
+                    cv2.rectangle(marked_image, (x1, y1), (x2, y2), (0, 0, 255), 3)
+                    cv2.imshow('marked_image', marked_image)
+                    cv2.waitKey(0)
+                    cv2.destroyAllWindows()
+                    break
+        
+        return encode_image(marked_image)
+
+    def _execute_event_command(self, command, current_page):
+        """
+        Execute the event command
+
+        Args:
+            command: str, the event command in natural language
+            current_page: Page object, the page before the event is executed
+
+        Returns:
+            List of events have been executed
+        """
+        logger.info("=====================execute event command===========================") 
+        message_history = [
+            SystemMessage(content=event_llm_prompt),
+            HumanMessage(content=command)
+        ]
+        
+        parsed_output = {"action": ""}
+        new_events = []
+        while parsed_output["action"] != "finished":
+            screenshot = self.device.screenshot()
+            base64_image = encode_image(screenshot)
+            
+            current_message = HumanMessage(content=[
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}",
+                    }
+                }
+            ])
+            message_history.append(current_message)
+            
+            response = event_llm.invoke(message_history)
+            parsed_output = json.loads(parse_action_output(response.text()))
+            
+            if parsed_output["action"] != "finished":
+                logger.info(f"Executing event: {parsed_output}")
+                new_events.append(phone_operation(parsed_output, current_page.img.shape, self.device, current_page))
+            
+            message_history.append(response)
+            
+        return new_events
 
 
 def is_node_exist(page, event):
     """
     Check if a node in an event exists in a page
+    
     Args:
         page: Page object, containing VHT (View Hierarchy Tree) structure
         event: Event object, containing node information
@@ -109,179 +539,19 @@ def is_node_exist(page, event):
     except Exception as e:
         print(f"Error in is_node_exist: {e}")
         return False
-    
-
-def verify_ptg_dfs(device, ptg_dir_path):
-    # Parse PTG file
-    ptg = PTGParser.parse(device, ptg_dir_path)
-    # Record visited pages
-    visited_pages_id = set()
-
-    # Depth-first traversal verification function
-    def dfs_verify(page_before):
-        # Mark current page as visited
-        visited_pages_id.add(page_before.id)
-        print(f"Visiting page id: {page_before.id}")
-        
-        # Check all adjacent pages and events of current page
-        if page_before in ptg._adj_list:
-            for page_after, events in ptg._adj_list[page_before].items():
-                print(f"  Checking transition to: {page_after.id}")
-                
-                # If target page is not visited, execute events to reach target page and visit recursively
-                if page_after.id not in visited_pages_id:
-                    print(f"    Executing events to reach page_after...")
-                    new_event = None
-                    result, error_type, current_page = verify_event_with_llm(page_before, page_after, events, device)
-                    if result:
-                        print(f"    Event verification passed: Successfully reached page_after")
-                    else:                        
-                        print(f"    Event verification failed: {error_type}")
-                        if error_type == "wrong_page":
-                            return_event_command = generate_return_event_command(page_before, current_page, events)
-                            execute_event_command(return_event_command, current_page, device)
-                        while True:
-                            next_event_command = generate_next_event_command(page_before, page_after)
-                            new_event = execute_event_command(next_event_command, page_before, device)
-                            result, error_type, current_page = verify_event_with_llm(page_before, page_after, events, device)
-                            if result:
-                                break
-                            else:
-                                if error_type == "wrong_page":
-                                    return_event_command = generate_return_event_command(page_before, current_page, events)
-                                    execute_event_command(return_event_command, current_page, device)
-                    if new_event:
-                        ptg._adj_list[page_before][page_after] = [new_event]
-                        current_page_after = device.dump_page(refresh=True)
-                        page_after.img = current_page_after.img
-                        page_after.vht = current_page_after.vht
-                        page_after.info = current_page_after.info
-                    dfs_verify(page_after) 
-                else:
-                    print(f"    Page {page_after.info.ability} already visited, skipping")
-        
-        return True
-    
-
-    def verify_event_with_llm(page_before, page_after, events, device):
-        print("=====================event verify===========================")
-        device.execute(events)
-        time.sleep(3)
-        current_page = device.dump_page(refresh=True)
-        messages = [
-            SystemMessage(content=verify_ptg_system_prompt),
-            HumanMessage(
-                content=[
-                    {"type": "text", "text": "First image: PTG before node screenshot"},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(page_before.img)}"}},
-                    {"type": "text", "text": "Second image: PTG after node screenshot"},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(page_after.img)}"}},
-                    {"type": "text", "text": "Third image: screenshot after actual event execution"},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(current_page.img)}"}},
-                ]
-            ),
-        ]
-            
-        response = llm.invoke(messages)
-        response_content = response.content.strip()
-        
-        if response_content.startswith('```'):
-            match = re.search(r'```(?:json)?\s*(.*?)\s*```', response_content, re.DOTALL)
-            if match:
-                response_content = match.group(1).strip()
-        
-        result_json = json.loads(response_content)
-        think = result_json.get("think", "")
-        result = result_json.get("result", False)
-        error_type = result_json.get("error_type", "")
-        
-        print(f"Analysis process: {think}")
-        print(f"Verification result: {'Pass' if result else 'Failed'}")
-        print(f"Error type: {error_type}")
-        return result, error_type, current_page
-
-        
-    def generate_return_event_command(page_before, current_page, events):
-        print("=====================generate return event command===========================")
-        messages = [
-            SystemMessage(content=generate_return_operation_prompt),
-            HumanMessage(content=[
-                {"type": "text", "text": "First image: target page (the page we want to return to, the page before the action is executed)"},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(page_before.img)}"}},
-                {"type": "text", "text": "Second image: the event to be executed"},
-                # TODO: needs optimization, events is a list, needs to be converted to string
-                {"type": "text", "text": f"{events}"},
-                {"type": "text", "text": "Third image: current page (the page after the action is executed, need to return to the target page)"},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(current_page.img)}"}},
-            ]),
-        ]
-        response = llm.invoke(messages)
-        print(f"Generated return operation command: {response.content}")
-        return response.content
-
-
-    def generate_next_event_command(page_before, page_after):
-        print("=====================generate next event command===========================")
-        messages = [
-            SystemMessage(content=generate_next_event_prompt),
-            HumanMessage(content=[
-                {"type": "text", "text": "First image: page before action"},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(page_before.img)}"}},
-                {"type": "text", "text": "Second image: page after action"},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(page_after.img)}"}},
-            ]),
-        ]
-        response = llm.invoke(messages)
-        print(f"Generated next operation command: {response.content}")
-        return response.content
-    
-    def execute_event_command(command, page, device):
-        print("=====================execute event command===========================")        
-        messages = [
-            SystemMessage(content=event_llm_prompt),
-            HumanMessage(content=[
-                {"type": "text", "text": command},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(page.img)}"}},
-            ]),
-        ]
-        response = event_llm.invoke(messages)
-        parsed_output = json.loads(parse_action_output(response.content))
-        print("parsed_output: ", parsed_output)
-        new_event = phone_operation(parsed_output, page.img.shape, device, page)
-        return new_event
-
-    # page = device.dump_page(refresh=True)
-    # execute_event_command("在瑞幸点一杯生椰拿铁，到店取", page, device)
-    # return
-    
-    # TODO: needs optimization
-    first_page = ptg.pages[0]
-    current_page = device.dump_page(refresh=True)
-    first_page.img = current_page.img
-    first_page.vht = current_page.vht
-    first_page.info = current_page.info
-    print(f"starting DFS from first page: {first_page.id}")
-    if not dfs_verify(first_page):
-        return False
-    
-    print("PTG verification completed!")
-    return True
-
-# Keep original function as simple verification method
-# def verify_ptg_simple(ptg):
-#     """
-#     Simple PTG verification method (original implementation)
-#     """
-#     for src_page, tgt_page in ptg._adj_list.items():
-#         for tgt_page, events in tgt_page.items():
-#             for event in events:
-#                 if not is_node_exist(src_page, event):
-#                     print(f"event not exist: {event}")
-#                     return False
-#             print(f"event exist: {event}")
-#     return True
 
 def extract_node_by_coordinates(click_x, click_y, page):
+    """
+    Extract the node by coordinates
+
+    Args:
+        click_x: int, the x coordinate of the click
+        click_y: int, the y coordinate of the click
+        page: Page object, the page to extract the node from
+
+    Returns:
+        VHTNode object, the node extracted from the page
+    """
     def point_in_bounds(x, y, bounds):
         if not bounds or len(bounds) != 2:
             return False
@@ -355,6 +625,18 @@ def extract_node_by_coordinates(click_x, click_y, page):
         return None
 
 def phone_operation(parsed_output, shape, device, page):
+    """
+    Execute the phone operation
+
+    Args:
+        parsed_output: dict, the parsed output of the action
+        shape: tuple, the shape of the image
+        device: Device object, the device to execute the operation
+        page: Page object, the page to execute the operation
+
+    Returns:
+        Event object, the event executed
+    """
     start_abs = coordinates_convert(parsed_output["start_box"], (shape[1], shape[0])) if parsed_output["start_box"] else None
     end_abs = coordinates_convert(parsed_output["end_box"], (shape[1], shape[0])) if parsed_output["end_box"] else None
     direction = parsed_output["direction"] if parsed_output["direction"] else None
@@ -364,7 +646,7 @@ def phone_operation(parsed_output, shape, device, page):
             (start_abs[0] + start_abs[2]) // 2,
             (start_abs[1] + start_abs[3]) // 2
         )
-        print(f"Click coordinates: {center_pos}")
+        logger.info(f"Click coordinates: {center_pos}")
         node = extract_node_by_coordinates(center_pos[0], center_pos[1], page)
         # print(f"Extracted node: {node.attribute['bounds']}")
         new_event = ClickEvent(node)
@@ -384,6 +666,12 @@ def phone_operation(parsed_output, shape, device, page):
 def parse_action_output(output_text):
     """
     Parse the output text of the action
+
+    Args:
+        output_text: str, the output text of the action
+
+    Returns:
+        dict, the parsed output of the action
     """
     thought_match = re.search(r'Thought:(.*?)\nAction:', output_text, re.DOTALL)
     thought = thought_match.group(1).strip() if thought_match else ""
@@ -465,3 +753,5 @@ def coordinates_convert(relative_bbox, img_size):
     
     return [abs_x1, abs_y1, abs_x2, abs_y2]
     
+
+

@@ -31,13 +31,13 @@ Where:
 Please ensure that the returned result is in valid JSON format."""
 
 generate_next_event_prompt = """You are a professional mobile UI automation testing expert.
-I need you to analyze screenshots before and after operations and generate corresponding operation descriptions.
+I need you to analyze screenshots before and after operations and generate corresponding operation descriptions with page transition information.
 
 I will give you two images:
 First image: Interface screenshot before operation (before)
 Second image: Interface screenshot after operation (after)
 
-Please analyze the differences between these two screenshots, infer what operations might have been performed from the first screenshot to the second screenshot, and generate specific operation descriptions.
+Please analyze the differences between these two screenshots, infer what operations might have been performed from the first screenshot to the second screenshot, and generate specific operation descriptions along with page transition information.
 
 When analyzing, please consider:
 - Interface layout changes (page transitions, popup appearance/disappearance, etc.)
@@ -46,7 +46,12 @@ When analyzing, please consider:
 - Scroll position changes
 - Focus or selection state changes
 
-Please generate accurate operation descriptions in the following format in Chinese:
+Please provide your analysis in the following format in Chinese:
+
+**界面转换描述：**
+从[源界面简要描述]转换到[目标界面简要描述]
+
+**操作描述：**
 - 点击[具体位置]的[具体元素]
 - 向[方向]滑动
 - 输入文本"[具体内容]"
@@ -55,33 +60,34 @@ Please generate accurate operation descriptions in the following format in Chine
 **Notes:**
 - Do not click buttons with voice input functionality (such as microphone icons, voice buttons, etc.)
 - Prioritize text buttons or icon buttons for operations
+- Be specific about what type of pages/interfaces are shown in before and after screenshots
+- Describe the page transition in a clear and concise manner
 
-Please provide concise and clear operation descriptions in Chinese."""
+Please provide concise and clear descriptions in Chinese."""
 
 generate_return_operation_prompt = """You are a professional mobile UI automation testing expert.
 I need you to analyze screenshots and PTG operation information to help the phone return from the current page to the target page.
 
 I will give you the following information:
-1. Two images:
-   - First image: Target page (the page we want to return to, which is the page before the action is executed)
-   - Second image: Current page (the page where the phone is now, the page after the action is executed, need to return to the target page from here)
-2. Operation event information executed between PTG two nodes
+Two images:
+  - Target page (the page we want to return to, which is the page before the action is executed). **Important: The red boxes in the target page mark the locations that were clicked to transition from the target page to the current page.**
+  - Current page (the page where the phone is now, the page after the action is executed, need to return to the target page from here)
 
-Please comprehensively analyze these two screenshots and PTG operation events, and directly give a specific operation description to enable the phone to return from the current page to the target page.
+Please provide your analysis in the following format in Chinese:
+
+**当前任务描述：**
+[简要描述当前的任务是什么，从什么页面返回到什么页面]
+
+**返回操作：**
+[具体的返回操作描述]
 
 When analyzing, please consider:
+- The red boxes show the exact locations that were clicked in the target page
 - What operations were performed between PTG nodes (click, swipe, input, etc.)
 - What page transitions or state changes this operation might have caused
 - Infer the most appropriate return method based on the operation type
 
-For example:
-- 点击左上角的返回按钮
-- 点击底部导航栏的首页按钮
-- 向右滑动返回上一页
-- 点击顶部的关闭按钮
-- 按系统返回键
-
-Please provide concise and clear operation descriptions in Chinese."""
+Please provide concise and clear descriptions in Chinese."""
 
 event_llm_prompt = """You are a GUI agent. You are given a task and your action history, with screenshots. You need to perform the next action to complete the task.
 ## Output Format
@@ -99,3 +105,59 @@ finished(content='xxx') # Use escape characters \\\\', \\\\\", and \\\\n in cont
 - Use Chinese in `Thought` part.
 - Write a small plan and finally summarize your next action (with its target element) in one sentence in `Thought` part.
 ## User Instruction"""
+
+verify_same_page_prompt = """You are an interface recognition expert. Please compare two interface screenshots and determine whether they are the same interface.
+
+Focus on:
+1. Overall layout structure of the interface
+2. Position of main functional areas
+3. Layout of navigation elements
+
+Ignore:
+1. Specific text content
+2. Image content differences
+3. Data changes
+
+Please return the result in JSON format: {"is_same": true/false}"""
+
+explore_page_events_prompt = """You are a professional mobile UI automation testing expert.
+Please analyze the provided interface screenshot and identify ONLY the most important clickable elements that are very likely to cause page transitions or major interface changes.
+
+**Focus ONLY on these critical navigation elements:**
+1. **Primary navigation**: Main menu buttons, navigation drawers, tab bars, bottom navigation
+2. **Major functional buttons**: Search, Settings, Profile, Login/Register, Add/Create new content
+3. **Category/Section entries**: Buttons that lead to different main functional areas
+4. **Key content items**: Only the first item in lists that represents a different content category or leads to detail pages
+
+**STRICTLY EXCLUDE these elements:**
+- Decorative icons, images, or logos
+- Social sharing buttons (like, share, comment)
+- Minor controls (volume, brightness, notifications toggle)
+- Voice input or microphone buttons
+- Advertisement banners or promotional content
+- Pure informational text without navigation purpose
+- Duplicate navigation options (choose only the most prominent one)
+- Secondary actions that don't change the main interface
+
+**Selection Strategy:**
+- Maximum 10 elements per interface
+- Only select elements with high confidence of causing page navigation
+- Prioritize elements that explore different functional areas of the application
+- Focus on primary user journeys and main application features
+
+**Output Format:**
+Please return the result in JSON format:
+{
+  "clickable_events": [
+    "Click the main navigation drawer button in the top-left corner",
+    "Click the Search button in the top-right corner",
+    "Click the Profile tab in the bottom navigation bar"
+  ]
+}
+
+Where:
+- clickable_events: List of clear and specific descriptions of the click action in English
+- Maximum 10 elements total
+- Only include elements that are almost certain to navigate to new pages/screens
+
+Please ensure the returned result is in valid JSON format and contains ONLY the most critical navigation elements."""
